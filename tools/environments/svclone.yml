@@ -1,0 +1,12 @@
+name: svclone
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.10
+  - svclone=1.1.2
+  - r-base=4.2.3
+  - r-optparse=1.7.5
+  - numpy=1.26.4
+  - pandas=2.2.1
+  - setuptools<81

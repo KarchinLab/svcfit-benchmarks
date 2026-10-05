@@ -1,0 +1,1423 @@
+---
+title: "SVCFit Downstream Evaluation (A2)"
+output: html_document
+---
+
+## Parameters — edit these before running
+
+```{r parameters}
+# Portable paths. Resolve relative to this script's
+# own location (Phylogeny_benchmark/scripts/..). Override with NPJ_PKG_ROOT, or run
+# via evaluate_downstream.R, which rewrites this chunk from command-line arguments.
+.fa   <- grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)
+.sd   <- if (length(.fa)) normalizePath(dirname(sub("^--file=", "", .fa[1]))) else getwd()
+.PB   <- Sys.getenv("NPJ_PB_ROOT", unset = normalizePath(file.path(.sd, ".."), mustWork = FALSE))
+if (!dir.exists(file.path(.PB, "bootstrap"))) .PB <- normalizePath("..", mustWork = FALSE)
+work_dir   <- file.path(.PB, "bootstrap")
+input_dir  <- work_dir
+truth_dir  <- file.path(.PB, "input_data", "hack")
+out_dir    <- file.path(.PB, "output", "boots0_4")
+
+cov        <- 50L
+n_boots    <- 5L            # boots 0..4: boot=0 uses bare exp*/ dirs, b1–b4 use b{n}/exp*/
+boot       <- NA_integer_   # set to an integer to restrict to one bootstrap index
+expected_cases <- 100L
+expected_no_tree <- NA_integer_
+expected_correct_topologies <- NA_integer_
+purities <- c(20L, 40L, 60L, 80L)
+experiments <- paste0("exp", 1:5)
+pre_stage  <- "pre_BAT"
+post_stage <- "on_BAT"
+
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+```
+
+## Libraries
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(dplyr)
+library(readr)
+library(tidyr)
+library(ggplot2)
+library(patchwork)
+library(lme4)
+```
+
+## Helper functions
+
+```{r helpers}
+true_clone_fracs_s1 <- function(pur) {
+  idiv <- function(a, b) as.integer(a) %/% as.integer(b)
+  s1_t1_c2 <- idiv(pur * 5L, 6L); s1_t1_c3 <- pur - s1_t1_c2
+  s1_t2_c2 <- idiv(pur * 1L, 6L); s1_t2_c3 <- pur - s1_t2_c2
+  list(
+    t1 = c(trunk = 1.0, sub1 = s1_t1_c2 / pur, sub2 = s1_t1_c3 / pur),
+    t2 = c(trunk = 1.0, sub1 = s1_t2_c2 / pur, sub2 = s1_t2_c3 / pur)
+  )
+}
+
+load_truth_beds <- function(truth_dir, overlap = FALSE) {
+  prefix <- if (overlap) c("c11", "c22", "c33") else c("c1", "c2", "c3")
+
+  c1 <- read_delim(file.path(truth_dir, paste0(prefix[1], ".bed")), delim = "\t",
+                   col_names = c("chr", "start", "end", "type", "info", "flank"),
+                   show_col_types = FALSE) %>%
+    mutate(true_clone = "truncal")
+
+  c2 <- read_delim(file.path(truth_dir, paste0(prefix[2], ".bed")), delim = "\t",
+                   col_names = c("chr", "start", "end", "type", "info", "flank"),
+                   show_col_types = FALSE)
+
+  c3 <- read_delim(file.path(truth_dir, paste0(prefix[3], ".bed")), delim = "\t",
+                   col_names = c("chr", "start", "end", "type", "info", "flank"),
+                   show_col_types = FALSE)
+
+  sub1_private <- anti_join(c2, c1, by = c("chr", "start", "end")) %>%
+    mutate(true_clone = "sub1")
+  sub2_private <- anti_join(c3, c1, by = c("chr", "start", "end")) %>%
+    mutate(true_clone = "sub2")
+
+  bind_rows(c1, sub1_private, sub2_private) %>%
+    select(chr, start, end, type, true_clone) %>%
+    distinct()
+}
+
+wilson_ci <- function(k, n, conf = 0.95) {
+  z     <- qnorm((1 + conf) / 2)
+  p     <- k / n
+  denom <- 1 + z^2 / n
+  ctr   <- (p + z^2 / (2 * n)) / denom
+  marg  <- z * sqrt(p * (1 - p) / n + z^2 / (4 * n^2)) / denom
+  c(lower = max(0, ctr - marg), upper = min(1, ctr + marg))
+}
+
+normal_ci <- function(x, conf = 0.95) {
+  x <- x[!is.na(x)]
+  n <- length(x)
+  if (n < 2) return(c(lower = NA_real_, upper = NA_real_))
+  t_crit <- qt((1 + conf) / 2, df = n - 1)
+  se     <- sd(x) / sqrt(n)
+  c(lower = mean(x) - t_crit * se, upper = mean(x) + t_crit * se)
+}
+
+parse_facet_bed <- function(facet_file) {
+  if (!file.exists(facet_file)) return(NULL)
+  df <- read_tsv(facet_file, show_col_types = FALSE) %>%
+    mutate(chrom = paste0("chr", chrom)) %>%
+    select(chrom, start, end, tcn = `tcn.em`, lcn = `lcn.em`)
+  df
+}
+
+parse_vcf_ao <- function(vcf_file) {
+  lines       <- readLines(vcf_file, warn = FALSE)
+  header_line <- lines[startsWith(lines, "#CHROM")][1]
+  data_lines  <- lines[!startsWith(lines, "#")]
+
+  if (length(data_lines) == 0 || is.na(header_line))
+    return(data.frame(sv_id = character(0), AO = integer(0),
+                      stringsAsFactors = FALSE))
+
+  col_names <- strsplit(header_line, "\t")[[1]]
+  fmt_idx   <- which(col_names == "FORMAT")
+  samp_idx  <- fmt_idx + 1L
+
+  rows  <- strsplit(data_lines, "\t")
+  sv_id <- vapply(rows, `[[`, character(1), 3L)
+  fmt   <- strsplit(vapply(rows, `[[`, character(1), fmt_idx),  ":")
+  samp  <- strsplit(vapply(rows, `[[`, character(1), samp_idx), ":")
+
+  ao_val <- mapply(function(f, s) {
+    idx <- match("AO", f)
+    if (is.na(idx) || idx > length(s)) return(NA_integer_)
+    suppressWarnings(as.integer(s[[idx]]))
+  }, fmt, samp, SIMPLIFY = TRUE)
+
+  data.frame(sv_id = sv_id, AO = ao_val, stringsAsFactors = FALSE)
+}
+
+validate_tree_centroids <- function(tree_edges, centroids, case_id,
+                                    lineage_thresh = 0.2,
+                                    sum_thresh = 0.2) {
+  edges <- as.data.frame(tree_edges, stringsAsFactors = FALSE)
+  if (!all(c("parent", "child") %in% names(edges)) || nrow(edges) == 0L)
+    stop(case_id, ": tree has no parent/child edges")
+  edges$parent <- as.character(edges$parent)
+  edges$child  <- as.character(edges$child)
+  if (anyNA(edges$parent) || anyNA(edges$child) || any(edges$parent == edges$child))
+    stop(case_id, ": tree contains missing or self-referential edges")
+  if (sum(edges$parent == "root") != 1L)
+    stop(case_id, ": tree must contain exactly one edge from root")
+  if (anyDuplicated(edges$child))
+    stop(case_id, ": a tree node has more than one parent")
+  if (anyDuplicated(centroids$cluster_num))
+    stop(case_id, ": centroid table contains duplicate cluster_num values")
+
+  cluster_labels <- as.character(centroids$cluster_num)
+  node_to_index <- function(node) {
+    node <- as.character(node)
+    direct <- match(node, cluster_labels)
+    prefixed <- match(paste0("cluster", node), cluster_labels)
+    numeric <- suppressWarnings(as.integer(node))
+    result <- ifelse(!is.na(direct), direct,
+                     ifelse(!is.na(prefixed), prefixed, numeric))
+    as.integer(result)
+  }
+
+  tree_nodes <- unique(c(edges$parent[edges$parent != "root"], edges$child))
+  node_indices <- node_to_index(tree_nodes)
+  if (anyNA(node_indices) || any(node_indices < 1L | node_indices > nrow(centroids)))
+    stop(case_id, ": tree references a cluster absent from cluster_centroids.csv")
+  if (!setequal(node_indices, seq_len(nrow(centroids))))
+    stop(case_id, ": tree and centroid table describe different cluster sets")
+
+  # Confirm the stored edges still satisfy the constraints used by build_tree().
+  ccf <- as.matrix(centroids[, c("t1_ccf", "t2_ccf")])
+  storage.mode(ccf) <- "double"
+  if (any(!is.finite(ccf))) stop(case_id, ": centroid CCFs are not finite")
+  scoring_ccf <- ccf
+  scoring_ccf[which.max(rowSums(scoring_ccf)), ] <- 1
+
+  for (i in seq_len(nrow(edges))) {
+    child_idx <- node_to_index(edges$child[i])
+    parent_ccf <- if (edges$parent[i] == "root") rep(1, ncol(ccf)) else {
+      parent_idx <- node_to_index(edges$parent[i])
+      ccf[parent_idx, ]
+    }
+    if (any(ccf[child_idx, ] - parent_ccf > lineage_thresh + 1e-12))
+      stop(case_id, ": stored tree violates lineage precedence")
+  }
+  for (parent in unique(edges$parent)) {
+    child_idx <- node_to_index(edges$child[edges$parent == parent])
+    child_sum <- colSums(scoring_ccf[child_idx, , drop = FALSE])
+    parent_ccf <- if (parent == "root") rep(1, ncol(ccf)) else scoring_ccf[node_to_index(parent), ]
+    if (any(child_sum - parent_ccf > sum_thresh + 1e-12))
+      stop(case_id, ": stored tree violates the sum condition")
+  }
+
+  # Every node must be reachable from root; the unique-parent check then also
+  # excludes disconnected cycles.
+  reached <- "root"
+  repeat {
+    next_nodes <- unique(edges$child[edges$parent %in% reached])
+    updated <- unique(c(reached, next_nodes))
+    if (length(updated) == length(reached)) break
+    reached <- updated
+  }
+  if (!all(tree_nodes %in% reached)) stop(case_id, ": tree contains unreachable nodes")
+  invisible(TRUE)
+}
+
+eval_classification <- function(sv_stage, truth_svs, trunk_cluster) {
+  matched <- sv_stage %>%
+    rowwise() %>%
+    mutate(
+      truth_idx = {
+        dists <- abs(truth_svs$start - POS)
+        idx   <- which(truth_svs$chr == CHROM & dists < 500)
+        if (length(idx) > 0) idx[which.min(dists[idx])] else NA_integer_
+      },
+      true_clone = if (!is.na(truth_idx)) truth_svs$true_clone[truth_idx] else NA_character_,
+      true_clonality = case_when(
+        true_clone == "truncal"            ~ "truncal",
+        true_clone %in% c("sub1", "sub2") ~ "subclonal",
+        TRUE                               ~ NA_character_
+      )
+    ) %>%
+    ungroup() %>%
+    filter(!is.na(true_clonality))
+
+  if (nrow(matched) == 0)
+    return(list(bal_acc = NA_real_, f1 = NA_real_, n_matched = 0L,
+                sensitivity = NA_real_, specificity = NA_real_))
+
+  tp <- sum(matched$inferred_clonality == "truncal"   & matched$true_clonality == "truncal",   na.rm = TRUE)
+  fp <- sum(matched$inferred_clonality == "truncal"   & matched$true_clonality == "subclonal", na.rm = TRUE)
+  fn <- sum(matched$inferred_clonality == "subclonal" & matched$true_clonality == "truncal",   na.rm = TRUE)
+  tn <- sum(matched$inferred_clonality == "subclonal" & matched$true_clonality == "subclonal", na.rm = TRUE)
+
+  sensitivity <- if (tp + fn > 0) tp / (tp + fn) else NA_real_
+  specificity <- if (tn + fp > 0) tn / (tn + fp) else NA_real_
+  bal_acc     <- if (!is.na(sensitivity) && !is.na(specificity))
+                   (sensitivity + specificity) / 2 else NA_real_
+  precision   <- if (tp + fp > 0) tp / (tp + fp) else NA_real_
+  f1          <- if (!is.na(precision) && !is.na(sensitivity) && (precision + sensitivity) > 0)
+                   2 * precision * sensitivity / (precision + sensitivity) else NA_real_
+
+  # Sensitivity (truncal recall) and specificity (subclonal recall) are the two components
+  # plotted in Supplementary Fig. S8D, returned and summarised per purity.
+  list(bal_acc = bal_acc, f1 = f1, n_matched = nrow(matched),
+       sensitivity = sensitivity, specificity = specificity)
+}
+```
+
+## Main evaluation loop
+
+```{r main-loop}
+exps     <- experiments
+boots    <- if (!is.na(boot)) boot else seq(0L, n_boots - 1L)
+
+results        <- list()
+sv_detail_list <- list()
+
+for (b in boots) {
+  for (pur in purities) {
+
+    true_ccfs <- true_clone_fracs_s1(pur)
+
+    for (exp_name in exps) {
+
+      longi_dir <- if (b == 0L) {
+        file.path(work_dir, "S1", paste0("c", cov, "p", pur), exp_name)
+      } else {
+        file.path(work_dir, "S1", paste0("c", cov, "p", pur),
+                  paste0("b", b), exp_name)
+      }
+      source_longi_dir <- if (b == 0L) {
+        file.path(input_dir, "S1", paste0("c", cov, "p", pur), exp_name)
+      } else {
+        file.path(input_dir, "S1", paste0("c", cov, "p", pur),
+                  paste0("b", b), exp_name)
+      }
+      case_id <- sprintf("boot=%d S1/p%d/%s", b, pur, exp_name)
+
+      cluster_file   <- file.path(longi_dir, "clustering", "sv2cluster.csv")
+      centroids_file <- file.path(longi_dir, "clustering", "cluster_centroids.csv")
+      tree_file      <- file.path(longi_dir, "tree", "tree_result.rds")
+      no_tree_file   <- file.path(longi_dir, "tree", "NO_TREE.txt")
+
+      required_files <- c(cluster_file, centroids_file)
+      missing_files <- required_files[!file.exists(required_files) |
+                                      file.info(required_files)$size <= 0]
+      if (length(missing_files))
+        stop(case_id, ": missing clustering output(s): ", paste(missing_files, collapse = ", "))
+      has_tree <- file.exists(tree_file) && file.info(tree_file)$size > 0
+      has_no_tree <- file.exists(no_tree_file) && file.info(no_tree_file)$size > 0
+      if (has_tree == has_no_tree)
+        stop(case_id, ": expected exactly one of tree_result.rds or NO_TREE.txt")
+
+      tree_outcome <- if (has_tree) "tree" else "no_tree"
+      cat(sprintf("  Evaluating %s (%s)...\n", case_id, tree_outcome))
+
+      truth_svs  <- load_truth_beds(truth_dir, overlap = (exp_name != "exp1"))
+      sv2cluster <- read_csv(cluster_file,   show_col_types = FALSE)
+      centroids  <- read_csv(centroids_file, show_col_types = FALSE) %>%
+        filter(pair == 1) %>%
+        select(cluster_num, t1_ccf = f_pre, t2_ccf = f_day85)
+      if (has_tree) {
+        tree_res   <- readRDS(tree_file)
+        tree_edges <- tree_res[[1]]
+        stored_mcf <- as.matrix(tree_res[[2]])
+        current_mcf <- as.matrix(centroids[, c("t1_ccf", "t2_ccf")])
+        storage.mode(stored_mcf) <- "double"
+        storage.mode(current_mcf) <- "double"
+        if (!identical(dim(stored_mcf), dim(current_mcf)) ||
+            !isTRUE(all.equal(unname(stored_mcf), unname(current_mcf),
+                              tolerance = 1e-12, check.attributes = FALSE)))
+          stop(case_id, ": tree_result.rds was built from different centroids")
+        validate_tree_centroids(tree_edges, centroids, case_id)
+      } else {
+        tree_edges <- data.frame(parent = character(), child = character())
+      }
+
+      trunk_idx     <- tree_edges$child[tree_edges$parent == "root"]
+      trunk_cluster <- if (length(trunk_idx) == 1)
+        paste0("cluster", trunk_idx) else NA_character_
+
+      sv2cluster <- sv2cluster %>%
+        mutate(inferred_clonality = ifelse(cluster_num == trunk_cluster,
+                                           "truncal", "subclonal"))
+
+      class_pre  <- eval_classification(
+        sv2cluster %>% filter(stage == pre_stage),  truth_svs, trunk_cluster)
+      class_post <- eval_classification(
+        sv2cluster %>% filter(stage == post_stage), truth_svs, trunk_cluster)
+
+      non_trunk <- centroids %>% filter(cluster_num != trunk_cluster)
+
+      ccf_inf_t1 <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
+      ccf_inf_t2 <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
+      best_asgn  <- NULL
+
+      if (!is.na(trunk_cluster) && nrow(non_trunk) == 2) {
+        assignments <- list(
+          c(non_trunk$cluster_num[1], non_trunk$cluster_num[2]),
+          c(non_trunk$cluster_num[2], non_trunk$cluster_num[1])
+        )
+        best_err  <- Inf
+        best_t1   <- best_t2 <- NULL
+        best_asgn <- NULL
+
+        for (asgn in assignments) {
+          inf_t1 <- c(
+            trunk = centroids$t1_ccf[centroids$cluster_num == trunk_cluster][1],
+            sub1  = centroids$t1_ccf[centroids$cluster_num == asgn[1]][1],
+            sub2  = centroids$t1_ccf[centroids$cluster_num == asgn[2]][1]
+          )
+          inf_t2 <- c(
+            trunk = centroids$t2_ccf[centroids$cluster_num == trunk_cluster][1],
+            sub1  = centroids$t2_ccf[centroids$cluster_num == asgn[1]][1],
+            sub2  = centroids$t2_ccf[centroids$cluster_num == asgn[2]][1]
+          )
+          err <- sum(abs(inf_t1 - true_ccfs$t1), na.rm = TRUE) +
+                 sum(abs(inf_t2 - true_ccfs$t2), na.rm = TRUE)
+          if (err < best_err) { best_err <- err; best_t1 <- inf_t1; best_t2 <- inf_t2; best_asgn <- asgn }
+        }
+
+        if (!is.null(best_t1)) {
+          ccf_inf_t1 <- best_t1
+          ccf_inf_t2 <- best_t2
+        }
+      }
+
+      ccf_mae_t1 <- abs(ccf_inf_t1 - true_ccfs$t1)
+      ccf_mae_t2 <- abs(ccf_inf_t2 - true_ccfs$t2)
+      ccf_err_t1 <- true_ccfs$t1 - ccf_inf_t1
+      ccf_err_t2 <- true_ccfs$t2 - ccf_inf_t2
+
+      eff_cov_t1     <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
+      eff_cov_t2     <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
+      bpc_t1         <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
+      bpc_t2         <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
+      seg_len_t1     <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
+      seg_len_t2     <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
+      ascn_t1        <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
+      ascn_t2        <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
+      sv_detail_rows <- list()
+
+      if (!is.na(trunk_cluster) && !is.null(best_asgn)) {
+        clone_clust <- c(trunk = trunk_cluster,
+                         sub1  = best_asgn[1], sub2 = best_asgn[2])
+        for (tp_n in 1:2) {
+          vcf_file   <- file.path(source_longi_dir, sprintf("t%d", tp_n), "svtyp",
+                                  sprintf("svt_%s_t%d.vcf", exp_name, tp_n))
+          facet_file <- file.path(source_longi_dir, sprintf("t%d", tp_n), "facet",
+                                  sprintf("%s_t%d.bed", exp_name, tp_n))
+          facet_df   <- parse_facet_bed(facet_file)
+          stage_lbl  <- if (tp_n == 1L) pre_stage else post_stage
+          tp_label   <- if (tp_n == 1L) "pre" else "post"
+
+          sv_tp <- sv2cluster %>%
+            filter(stage == stage_lbl) %>%
+            mutate(sv_id = ifelse(!is.na(shared), shared,
+                                  sub("^.*_(Manta.+)$", "\\1", event_id)))
+
+          if (file.exists(vcf_file)) {
+            ao_df <- parse_vcf_ao(vcf_file)
+            sv_tp <- sv_tp %>% left_join(ao_df, by = "sv_id")
+          } else {
+            sv_tp <- sv_tp %>% mutate(AO = NA_integer_)
+          }
+
+          for (cl in c("trunk", "sub1", "sub2")) {
+            sv_cl    <- sv_tp %>% filter(cluster_num == clone_clust[[cl]])
+            ao_vals  <- sv_cl$AO[!is.na(sv_cl$AO)]
+            len_vals <- abs(sv_cl$sv_len[!is.na(sv_cl$sv_len)])
+
+            nd_flags <- if (!is.null(facet_df) && nrow(sv_cl) > 0L) {
+              vapply(seq_len(nrow(sv_cl)), function(i) {
+                chr <- sv_cl$CHROM[i]
+                pos <- suppressWarnings(as.integer(sv_cl$POS[i]))
+                idx <- which(facet_df$chrom == chr &
+                             facet_df$start  <= pos & facet_df$end >= pos)
+                if (length(idx) == 0L) NA_real_
+                else as.numeric(facet_df$tcn[idx[1L]] != 2L |
+                                facet_df$lcn[idx[1L]] != 1L)
+              }, numeric(1))
+            } else rep(NA_real_, nrow(sv_cl))
+
+            mean_ao  <- if (length(ao_vals)  > 0L) mean(ao_vals)  else NA_real_
+            mean_len <- if (length(len_vals) > 0L) mean(len_vals) else NA_real_
+            bpc_val  <- as.numeric(nrow(sv_cl))
+            ascn_val <- mean(nd_flags, na.rm = TRUE)
+
+            if (tp_n == 1L) {
+              eff_cov_t1[[cl]] <- mean_ao;  bpc_t1[[cl]] <- bpc_val
+              seg_len_t1[[cl]] <- mean_len; ascn_t1[[cl]] <- ascn_val
+            } else {
+              eff_cov_t2[[cl]] <- mean_ao;  bpc_t2[[cl]] <- bpc_val
+              seg_len_t2[[cl]] <- mean_len; ascn_t2[[cl]] <- ascn_val
+            }
+
+            if (nrow(sv_cl) > 0L)
+              sv_detail_rows <- c(sv_detail_rows, list(tibble(
+                boot          = b,
+                purity        = pur,
+                experiment    = exp_name,
+                clone         = cl,
+                timepoint     = tp_label,
+                sv_type       = sv_cl$classification,
+                ao            = sv_cl$AO,
+                sv_len        = abs(sv_cl$sv_len),
+                is_nondiploid = nd_flags
+              )))
+          }
+        }
+      }
+
+      correct_topology <- FALSE
+      topo_score       <- 0
+
+      if (!is.null(tree_edges) && nrow(tree_edges) > 0) {
+        root_children <- tree_edges$child[tree_edges$parent == "root"]
+        if (length(root_children) == 1) {
+          topo_score  <- topo_score + 1/3
+          trunk_node  <- root_children[1]
+          trunk_ch    <- tree_edges$child[tree_edges$parent == trunk_node]
+          if (length(trunk_ch) == 2) {
+            topo_score <- topo_score + 1/3
+            leaf1 <- length(tree_edges$child[tree_edges$parent == trunk_ch[1]]) == 0
+            leaf2 <- length(tree_edges$child[tree_edges$parent == trunk_ch[2]]) == 0
+            if (leaf1 && leaf2) {
+              topo_score       <- topo_score + 1/3
+              correct_topology <- TRUE
+            }
+          }
+        }
+      }
+
+      results <- c(results, list(tibble(
+        boot               = b,
+        purity             = pur,
+        experiment         = exp_name,
+        tree_outcome       = tree_outcome,
+        n_svs_pre          = class_pre$n_matched,
+        n_svs_post         = class_post$n_matched,
+        n_clusters         = length(unique(sv2cluster$cluster_num)),
+        bal_acc_pre        = class_pre$bal_acc,
+        f1_pre             = class_pre$f1,
+        bal_acc_post       = class_post$bal_acc,
+        f1_post            = class_post$f1,
+        sens_pre           = class_pre$sensitivity,
+        spec_pre           = class_pre$specificity,
+        sens_post          = class_post$sensitivity,
+        spec_post          = class_post$specificity,
+        ccf_inf_trunk_pre  = ccf_inf_t1["trunk"],
+        ccf_inf_sub1_pre   = ccf_inf_t1["sub1"],
+        ccf_inf_sub2_pre   = ccf_inf_t1["sub2"],
+        ccf_inf_trunk_post = ccf_inf_t2["trunk"],
+        ccf_inf_sub1_post  = ccf_inf_t2["sub1"],
+        ccf_inf_sub2_post  = ccf_inf_t2["sub2"],
+        ccf_mae_trunk_pre  = ccf_mae_t1["trunk"],
+        ccf_mae_sub1_pre   = ccf_mae_t1["sub1"],
+        ccf_mae_sub2_pre   = ccf_mae_t1["sub2"],
+        ccf_mae_trunk_post = ccf_mae_t2["trunk"],
+        ccf_mae_sub1_post  = ccf_mae_t2["sub1"],
+        ccf_mae_sub2_post  = ccf_mae_t2["sub2"],
+        ccf_err_trunk_pre  = ccf_err_t1["trunk"],
+        ccf_err_sub1_pre   = ccf_err_t1["sub1"],
+        ccf_err_sub2_pre   = ccf_err_t1["sub2"],
+        ccf_err_trunk_post = ccf_err_t2["trunk"],
+        ccf_err_sub1_post  = ccf_err_t2["sub1"],
+        ccf_err_sub2_post  = ccf_err_t2["sub2"],
+        eff_cov_trunk_pre  = eff_cov_t1["trunk"],
+        eff_cov_sub1_pre   = eff_cov_t1["sub1"],
+        eff_cov_sub2_pre   = eff_cov_t1["sub2"],
+        eff_cov_trunk_post = eff_cov_t2["trunk"],
+        eff_cov_sub1_post  = eff_cov_t2["sub1"],
+        eff_cov_sub2_post  = eff_cov_t2["sub2"],
+        bpc_trunk_pre      = bpc_t1["trunk"],
+        bpc_sub1_pre       = bpc_t1["sub1"],
+        bpc_sub2_pre       = bpc_t1["sub2"],
+        bpc_trunk_post     = bpc_t2["trunk"],
+        bpc_sub1_post      = bpc_t2["sub1"],
+        bpc_sub2_post      = bpc_t2["sub2"],
+        seg_len_trunk_pre  = seg_len_t1["trunk"],
+        seg_len_sub1_pre   = seg_len_t1["sub1"],
+        seg_len_sub2_pre   = seg_len_t1["sub2"],
+        seg_len_trunk_post = seg_len_t2["trunk"],
+        seg_len_sub1_post  = seg_len_t2["sub1"],
+        seg_len_sub2_post  = seg_len_t2["sub2"],
+        ascn_trunk_pre     = ascn_t1["trunk"],
+        ascn_sub1_pre      = ascn_t1["sub1"],
+        ascn_sub2_pre      = ascn_t1["sub2"],
+        ascn_trunk_post    = ascn_t2["trunk"],
+        ascn_sub1_post     = ascn_t2["sub1"],
+        ascn_sub2_post     = ascn_t2["sub2"],
+        correct_topology   = correct_topology,
+        topo_score         = topo_score
+      )))
+      sv_detail_list <- c(sv_detail_list, sv_detail_rows)
+    }
+  }
+}
+```
+
+## Compile results
+
+```{r compile}
+if (length(results) == 0) stop("No completed runs found.")
+
+all_results <- bind_rows(results)
+if (nrow(all_results) != expected_cases)
+  stop(sprintf("Expected %d scored cases but found %d", expected_cases, nrow(all_results)))
+n_no_tree <- sum(all_results$tree_outcome == "no_tree")
+if (!is.na(expected_no_tree) && n_no_tree != expected_no_tree)
+  stop(sprintf("Expected %d NO_TREE outcomes but found %d", expected_no_tree, n_no_tree))
+n_correct_topologies <- sum(all_results$correct_topology)
+if (!is.na(expected_correct_topologies) &&
+    n_correct_topologies != expected_correct_topologies)
+  stop(sprintf("Expected %d correct topologies but found %d",
+               expected_correct_topologies, n_correct_topologies))
+cat(sprintf("\n=== COMPLETENESS: n_expected=%d n_scored=%d n_no_tree=%d ===\n",
+            expected_cases, nrow(all_results), n_no_tree))
+write_csv(all_results, file.path(out_dir, "evaluation_summary.csv"))
+cat(sprintf("\n=== SUMMARY (%d runs evaluated) ===\n", nrow(all_results)))
+
+sv_detail_df <- if (length(sv_detail_list) > 0) bind_rows(sv_detail_list) else NULL
+if (!is.null(sv_detail_df))
+  write_csv(sv_detail_df, file.path(out_dir, "sv_detail_data.csv"))
+```
+
+## Classification summary
+
+```{r classification}
+class_summary <- all_results %>%
+  group_by(purity) %>%
+  summarise(
+    n                 = n(),
+    n_scored          = n(),
+    n_no_tree         = sum(tree_outcome == "no_tree"),
+    mean_bal_acc_pre  = mean(bal_acc_pre,  na.rm = TRUE),
+    ci_lo_pre         = normal_ci(bal_acc_pre)["lower"],
+    ci_hi_pre         = normal_ci(bal_acc_pre)["upper"],
+    mean_bal_acc_post = mean(bal_acc_post, na.rm = TRUE),
+    ci_lo_post        = normal_ci(bal_acc_post)["lower"],
+    ci_hi_post        = normal_ci(bal_acc_post)["upper"],
+    mean_f1_pre       = mean(f1_pre,       na.rm = TRUE),
+    mean_f1_post      = mean(f1_post,      na.rm = TRUE),
+    .groups = "drop"
+  )
+# NO_TREE cases remain in these summaries. A missing job is a fatal evaluation
+# error, so every purity must contribute all 25 expected cases.
+class_summary
+write_csv(class_summary, file.path(out_dir, "classification_summary.csv"))
+
+# --- Per-purity truncal / subclonal recall (Supplementary Fig. S8C) ---------
+# These are the two components of the balanced accuracy above:
+#   truncal recall (sensitivity)    = of the SVs whose truth is truncal, the
+#                                     fraction the pipeline called truncal
+#   subclonal recall (specificity)  = of the SVs whose truth is subclonal, the
+#                                     fraction the pipeline called subclonal
+# Fig. S8C previously carried these eight values hardcoded; it now reads this file.
+recall_summary <- all_results %>%
+  group_by(purity) %>%
+  summarise(
+    n                = n(),
+    n_scored         = n(),
+    n_no_tree        = sum(tree_outcome == "no_tree"),
+    truncal_recall_pre    = mean(sens_pre,  na.rm = TRUE),
+    subclonal_recall_pre  = mean(spec_pre,  na.rm = TRUE),
+    truncal_recall_post   = mean(sens_post, na.rm = TRUE),
+    subclonal_recall_post = mean(spec_post, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    bal_acc_pre_check  = (truncal_recall_pre  + subclonal_recall_pre)  / 2,
+    bal_acc_post_check = (truncal_recall_post + subclonal_recall_post) / 2
+  )
+recall_summary
+write_csv(recall_summary, file.path(out_dir, "recall_summary.csv"))
+```
+
+## Clone CCF MAE summary
+
+```{r ccf-mae}
+ccf_summary <- all_results %>%
+  group_by(purity) %>%
+  summarise(
+    n_scored               = n(),
+    n_no_tree              = sum(tree_outcome == "no_tree"),
+    mean_mae_trunk_pre  = mean(ccf_mae_trunk_pre,  na.rm = TRUE),
+    mean_mae_sub1_pre   = mean(ccf_mae_sub1_pre,   na.rm = TRUE),
+    mean_mae_sub2_pre   = mean(ccf_mae_sub2_pre,   na.rm = TRUE),
+    mean_mae_trunk_post = mean(ccf_mae_trunk_post,  na.rm = TRUE),
+    mean_mae_sub1_post  = mean(ccf_mae_sub1_post,   na.rm = TRUE),
+    mean_mae_sub2_post  = mean(ccf_mae_sub2_post,   na.rm = TRUE),
+    .groups = "drop"
+  )
+ccf_summary
+write_csv(ccf_summary, file.path(out_dir, "ccf_mae_summary.csv"))
+```
+
+## Tree topology recovery
+
+```{r topology}
+topo_summary <- all_results %>%
+  group_by(purity) %>%
+  summarise(
+    n             = n(),
+    n_scored      = n(),
+    n_no_tree     = sum(tree_outcome == "no_tree"),
+    n_correct     = sum(correct_topology, na.rm = TRUE),
+    recovery_rate = n_correct / n,
+    ci_lower      = wilson_ci(n_correct, n)["lower"],
+    ci_upper      = wilson_ci(n_correct, n)["upper"],
+    .groups = "drop"
+  )
+# NO_TREE is a scored topology failure. Missing output aborts the evaluation,
+# preventing an incomplete denominator from being published.
+topo_summary
+write_csv(topo_summary, file.path(out_dir, "topology_summary.csv"))
+```
+
+## Table A2-1
+
+```{r table-a2-1}
+avg_ccf_mae <- all_results %>%
+  group_by(purity) %>%
+  summarise(
+    pre_ccf_mae  = mean(c(ccf_mae_trunk_pre,  ccf_mae_sub1_pre,  ccf_mae_sub2_pre),  na.rm = TRUE),
+    post_ccf_mae = mean(c(ccf_mae_trunk_post, ccf_mae_sub1_post, ccf_mae_sub2_post), na.rm = TRUE),
+    .groups = "drop"
+  )
+
+table_a2_1 <- class_summary %>%
+  left_join(avg_ccf_mae,  by = "purity") %>%
+  left_join(topo_summary, by = "purity") %>%
+  transmute(
+    Purity             = paste0(purity, "%"),
+    `N reps`           = n.x,
+    `Pre bal. acc. [95% CI]`  = sprintf("%.3f [%.3f–%.3f]",
+                                         mean_bal_acc_pre,  ci_lo_pre,  ci_hi_pre),
+    `Post bal. acc. [95% CI]` = sprintf("%.3f [%.3f–%.3f]",
+                                         mean_bal_acc_post, ci_lo_post, ci_hi_post),
+    `Pre CCF MAE`      = sprintf("%.3f", pre_ccf_mae),
+    `Post CCF MAE`     = sprintf("%.3f", post_ccf_mae),
+    `Topology (n/N)`   = sprintf("%d/%d", n_correct, n.y)
+  )
+
+write_csv(table_a2_1, file.path(out_dir, "table_a2_1.csv"))
+table_a2_1
+```
+
+## Table A2-2
+
+```{r table-a2-2}
+purities <- c(20L, 40L, 60L, 80L)
+
+true_ccf_df <- do.call(rbind, lapply(purities, function(pur) {
+  tc <- true_clone_fracs_s1(pur)
+  data.frame(
+    purity        = pur,
+    clone         = c("trunk", "sub1", "sub2"),
+    true_ccf_pre  = unname(tc$t1),
+    true_ccf_post = unname(tc$t2),
+    stringsAsFactors = FALSE
+  )
+}))
+
+ccf_inf_long <- all_results %>%
+  select(purity, starts_with("ccf_inf_")) %>%
+  pivot_longer(cols = starts_with("ccf_inf_"),
+               names_to = "metric", values_to = "ccf") %>%
+  mutate(
+    clone     = sub("ccf_inf_(trunk|sub1|sub2)_(pre|post)", "\\1", metric),
+    timepoint = sub("ccf_inf_(trunk|sub1|sub2)_(pre|post)", "\\2", metric)
+  )
+
+table_a2_2 <- ccf_inf_long %>%
+  group_by(purity, clone, timepoint) %>%
+  summarise(
+    mean_ccf = mean(ccf, na.rm = TRUE),
+    sd_ccf   = sd(ccf,   na.rm = TRUE),
+    .groups  = "drop"
+  ) %>%
+  pivot_wider(names_from = timepoint,
+              values_from = c(mean_ccf, sd_ccf),
+              names_glue = "{timepoint}_{.value}") %>%
+  left_join(true_ccf_df, by = c("purity", "clone")) %>%
+  transmute(
+    Purity = paste0(purity, "%"),
+    Clone  = clone,
+    `True CCF (pre)`              = sprintf("%.3f", true_ccf_pre),
+    `Inferred CCF (pre, mean±SD)` = sprintf("%.3f±%.3f", pre_mean_ccf, pre_sd_ccf),
+    `True CCF (post)`              = sprintf("%.3f", true_ccf_post),
+    `Inferred CCF (post, mean±SD)` = sprintf("%.3f±%.3f", post_mean_ccf, post_sd_ccf)
+  ) %>%
+  arrange(Purity, Clone)
+
+write_csv(table_a2_2, file.path(out_dir, "table_a2_2.csv"))
+table_a2_2
+```
+
+## Figure A2-1
+
+```{r fig-a2-1, fig.width=4, fig.height=9}
+pub_theme <- theme_classic(base_size = 9) +
+  theme(
+    panel.grid.major = element_line(colour = "grey92", linewidth = 0.25),
+    strip.background = element_rect(fill = "grey93", colour = NA),
+    strip.text       = element_text(face = "bold", size = 9),
+    axis.line        = element_line(linewidth = 0.35),
+    axis.ticks       = element_line(linewidth = 0.35),
+    axis.text        = element_text(colour = "black", size = 8),
+    axis.title       = element_text(size = 9),
+    legend.key.size  = unit(0.35, "cm"),
+    legend.text      = element_text(size = 8),
+    legend.title     = element_text(face = "bold", size = 9),
+    plot.tag         = element_text(face = "bold", size = 10),
+    plot.title       = element_text(size = 9)
+  )
+theme_set(pub_theme)
+
+bal_acc_long <- class_summary %>%
+  select(purity,
+         Pre  = mean_bal_acc_pre,  pre_lo  = ci_lo_pre,  pre_hi  = ci_hi_pre,
+         Post = mean_bal_acc_post, post_lo = ci_lo_post, post_hi = ci_hi_post) %>%
+  pivot_longer(cols = c(Pre, Post),
+               names_to = "timepoint", values_to = "mean_bal_acc") %>%
+  mutate(
+    ci_lo     = ifelse(timepoint == "Pre", pre_lo,  post_lo),
+    ci_hi     = ifelse(timepoint == "Pre", pre_hi,  post_hi),
+    timepoint = factor(timepoint, levels = c("Pre", "Post"))
+  )
+
+tp_colors <- c("Pre" = "#0072B2", "Post" = "#D55E00")
+
+p_A <- bal_acc_long %>%
+  ggplot(aes(x = purity, y = mean_bal_acc,
+             color = timepoint, fill = timepoint, group = timepoint)) +
+  geom_ribbon(aes(ymin = ci_lo, ymax = ci_hi), alpha = 0.15, color = NA) +
+  geom_line(linewidth = 0.9) +
+  geom_point(size = 2.5) +
+  scale_x_continuous(breaks = purities, labels = paste0(purities, "%")) +
+  scale_color_manual(values = tp_colors) +
+  scale_fill_manual( values = tp_colors) +
+  labs(x = NULL, y = "Balanced accuracy",
+       color = "Timepoint", fill = "Timepoint") +
+  scale_y_continuous(limits = c(0.5, 1), breaks = seq(0.5, 1, 0.1))
+
+ccf_err_long <- all_results %>%
+  select(purity, starts_with("ccf_err_")) %>%
+  pivot_longer(cols = starts_with("ccf_err_"),
+               names_to = "metric", values_to = "err") %>%
+  mutate(
+    clone     = sub("ccf_err_(trunk|sub1|sub2)_(pre|post)", "\\1", metric),
+    timepoint = sub("ccf_err_(trunk|sub1|sub2)_(pre|post)", "\\2", metric),
+    clone     = factor(clone, levels = c("trunk", "sub1", "sub2"),
+                       labels = c("Trunk", "Subclone 1", "Subclone 2")),
+    timepoint = factor(timepoint, levels = c("pre", "post"), labels = c("Pre", "Post"))
+  ) %>%
+  group_by(purity, clone, timepoint) %>%
+  summarise(
+    mean_err = mean(err, na.rm = TRUE),
+    ci_lo    = normal_ci(err)["lower"],
+    ci_hi    = normal_ci(err)["upper"],
+    .groups  = "drop"
+  )
+write_csv(ccf_err_long, file.path(out_dir, "ccf_error_summary.csv"))
+
+clone_colors <- c("Trunk" = "#555555", "Subclone 1" = "#009E73", "Subclone 2" = "#CC79A7")
+
+p_B <- ccf_err_long %>%
+  ggplot(aes(x = purity, y = mean_err,
+             color = clone, fill = clone, linetype = timepoint,
+             group = interaction(clone, timepoint))) +
+  geom_hline(yintercept = 0, linetype = "dotted", color = "grey50") +
+  geom_ribbon(aes(ymin = ci_lo, ymax = ci_hi), alpha = 0.10, color = NA) +
+  geom_line(linewidth = 0.9) +
+  geom_point(size = 2.5) +
+  scale_x_continuous(breaks = purities, labels = paste0(purities, "%")) +
+  scale_color_manual(values = clone_colors) +
+  scale_fill_manual( values = clone_colors) +
+  scale_linetype_manual(values = c("Pre" = "solid", "Post" = "dashed")) +
+  labs(x = NULL, y = "CCF signed error (true − inferred)",
+       color = "Clone", fill = "Clone", linetype = "Timepoint")
+
+p_C <- topo_summary %>%
+  ggplot(aes(x = factor(purity), y = recovery_rate)) +
+  geom_col(fill = "#0072B2", width = 0.55) +
+  geom_errorbar(aes(ymin = ci_lower, ymax = ci_upper),
+                width = 0.18, linewidth = 0.5) +
+  geom_text(aes(label = sprintf("%d/%d", n_correct, n),
+                y = pmin(ci_upper + 0.04, 1.14)),
+            size = 2.8) +
+  scale_x_discrete(labels = paste0(purities, "%")) +
+  labs(x = "Tumor purity", y = "Correct topology (fraction)") +
+  coord_cartesian(ylim = c(0, 1.18))
+
+p_a2_1 <- (p_A / p_B / p_C) +
+  plot_annotation(tag_levels = "A") &
+  theme(plot.tag = element_text(face = "bold", size = 10))
+
+ggsave(file.path(out_dir, "fig_a2_1.pdf"), p_a2_1,
+       width = 7, height = 9, useDingbats = FALSE)
+p_a2_1
+```
+
+## Figure A2-2 (illustrative replicate, p = 60%)
+
+```{r fig-a2-2, fig.width=7, fig.height=6}
+illustrative_row <- all_results %>% filter(purity == 60L, tree_outcome == "tree") %>% slice(1)
+
+if (nrow(illustrative_row) == 0) {
+  message("No p=60% replicate found; skipping Figure A2-2.")
+} else {
+  boot_i <- illustrative_row$boot
+  exp_i  <- illustrative_row$experiment
+
+  longi_dir_i <- if (boot_i == 0L) {
+    file.path(work_dir, "S1", paste0("c", cov, "p60"), exp_i)
+  } else {
+    file.path(work_dir, "S1", paste0("c", cov, "p60"),
+              paste0("b", boot_i), exp_i)
+  }
+
+  sv2c_i  <- read_csv(file.path(longi_dir_i, "clustering", "sv2cluster.csv"),
+                      show_col_types = FALSE)
+  cents_i <- read_csv(file.path(longi_dir_i, "clustering", "cluster_centroids.csv"),
+                      show_col_types = FALSE) %>%
+    filter(pair == 1) %>%
+    select(cluster_num, t1_ccf = f_pre, t2_ccf = f_day85)
+  tree_i  <- readRDS(file.path(longi_dir_i, "tree", "tree_result.rds"))
+  edges_i <- tree_i[[1]]
+
+  trunk_idx_i   <- edges_i$child[edges_i$parent == "root"]
+  trunk_clust_i <- if (length(trunk_idx_i) == 1)
+    paste0("cluster", trunk_idx_i) else NA_character_
+
+  sv2c_i <- sv2c_i %>%
+    mutate(inferred_clonality = ifelse(cluster_num == trunk_clust_i,
+                                       "truncal", "subclonal"))
+
+  true_ccfs_60 <- true_clone_fracs_s1(60L)
+
+  make_tree_plot <- function(node_df, edge_df, title_txt) {
+    ggplot() +
+      geom_segment(data = edge_df,
+                   aes(x = x1, xend = x2, y = y1, yend = y2),
+                   linewidth = 0.7, color = "grey40") +
+      geom_label(data = node_df,
+                 aes(x = x, y = y, label = label),
+                 size = 2.4, fill = "white", label.size = 0.25,
+                 label.padding = unit(0.25, "lines")) +
+      xlim(-0.85, 0.85) + ylim(-0.4, 2.4) +
+      theme_void(base_size = 9)
+  }
+
+  tree_edges_std <- data.frame(
+    x1 = c(0,  0, 0), y1 = c(2, 1, 1),
+    x2 = c(0, -0.6, 0.6), y2 = c(1, 0, 0)
+  )
+
+  true_nodes <- data.frame(
+    label = c(
+      "Root",
+      "Trunk\nCCF = 1.00",
+      sprintf("Sub1\npre=%.2f\npost=%.2f",
+              true_ccfs_60$t1["sub1"], true_ccfs_60$t2["sub1"]),
+      sprintf("Sub2\npre=%.2f\npost=%.2f",
+              true_ccfs_60$t1["sub2"], true_ccfs_60$t2["sub2"])
+    ),
+    x = c(0, 0, -0.6, 0.6),
+    y = c(2, 1, 0, 0)
+  )
+  p_A2 <- make_tree_plot(true_nodes, tree_edges_std, "")
+
+  if (!is.null(edges_i) && nrow(edges_i) > 0 && !is.na(trunk_clust_i)) {
+    non_trunk_i <- cents_i %>% filter(cluster_num != trunk_clust_i)
+    inf_nodes <- data.frame(
+      label = c(
+        "Root",
+        sprintf("Trunk\npre=%.2f\npost=%.2f",
+                cents_i$t1_ccf[cents_i$cluster_num == trunk_clust_i],
+                cents_i$t2_ccf[cents_i$cluster_num == trunk_clust_i]),
+        if (nrow(non_trunk_i) >= 1)
+          sprintf("Sub A\npre=%.2f\npost=%.2f",
+                  non_trunk_i$t1_ccf[1], non_trunk_i$t2_ccf[1])
+        else "Sub A\n(absent)",
+        if (nrow(non_trunk_i) >= 2)
+          sprintf("Sub B\npre=%.2f\npost=%.2f",
+                  non_trunk_i$t1_ccf[2], non_trunk_i$t2_ccf[2])
+        else "Sub B\n(absent)"
+      ),
+      x = c(0, 0, -0.6, 0.6),
+      y = c(2, 1, 0, 0)
+    )
+    p_B2 <- make_tree_plot(inf_nodes, tree_edges_std, "")
+  } else {
+    p_B2 <- ggplot() +
+      annotate("text", x = 0.5, y = 0.5,
+               label = "Topology not\nrecovered", size = 3.5, hjust = 0.5) +
+      theme_void()
+  }
+
+  scatter_df <- cents_i %>%
+    arrange(cluster_num) %>%
+    mutate(
+      rank       = row_number(),
+      is_trunk   = cluster_num == trunk_clust_i,
+      sub_rank   = cumsum(!is_trunk),
+      clone_label = case_when(
+        is_trunk  ~ "Trunk",
+        TRUE      ~ paste0("Sub ", sub_rank)
+      )
+    )
+
+  p_C2 <- scatter_df %>%
+    ggplot(aes(x = t1_ccf, y = t2_ccf, color = clone_label, label = clone_label)) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey70",
+                linewidth = 0.4) +
+    geom_point(size = 3) +
+    geom_text(vjust = -0.8, size = 2.8, show.legend = FALSE) +
+    scale_color_manual(values = c("Trunk" = "#555555",
+                                  "Sub 1" = "#009E73",
+                                  "Sub 2" = "#CC79A7")) +
+    labs(x = "Pre-treatment CCF", y = "Post-treatment CCF",
+         color = "Clone") +
+    coord_cartesian(xlim = c(0, 1.05), ylim = c(0, 1.05))
+
+  truth_svs_i <- load_truth_beds(truth_dir, overlap = (exp_i != "exp1"))
+
+  make_conf_df <- function(sv_tp, stage_label) {
+    matched_tp <- sv_tp %>%
+      rowwise() %>%
+      mutate(
+        truth_idx = {
+          dists <- abs(truth_svs_i$start - POS)
+          idx   <- which(truth_svs_i$chr == CHROM & dists < 500)
+          if (length(idx) > 0) idx[which.min(dists[idx])] else NA_integer_
+        },
+        true_clone = if (!is.na(truth_idx)) truth_svs_i$true_clone[truth_idx] else NA_character_,
+        true_clonality = case_when(
+          true_clone == "truncal"            ~ "Truncal",
+          true_clone %in% c("sub1", "sub2") ~ "Subclonal",
+          TRUE                               ~ NA_character_
+        )
+      ) %>%
+      ungroup() %>%
+      filter(!is.na(true_clonality))
+
+    if (nrow(matched_tp) == 0) return(NULL)
+
+    matched_tp %>%
+      count(true_clonality, inferred_clonality) %>%
+      mutate(timepoint = stage_label)
+  }
+
+  pre_conf  <- make_conf_df(sv2c_i %>% filter(stage == pre_stage),  "Pre")
+  post_conf <- make_conf_df(sv2c_i %>% filter(stage == post_stage), "Post")
+  conf_df   <- bind_rows(pre_conf, post_conf)
+
+  if (!is.null(conf_df) && nrow(conf_df) > 0) {
+    p_D2 <- conf_df %>%
+      mutate(
+        inferred_clonality = tools::toTitleCase(inferred_clonality),
+        inferred_clonality = factor(inferred_clonality, levels = c("Truncal", "Subclonal")),
+        true_clonality     = factor(true_clonality, levels = c("Truncal", "Subclonal")),
+        timepoint          = factor(timepoint, levels = c("Pre", "Post"))
+      ) %>%
+      ggplot(aes(x = inferred_clonality, y = true_clonality,
+                 fill = n, label = n)) +
+      geom_tile(color = "white", linewidth = 0.6) +
+      geom_text(size = 3, color = "black") +
+      facet_wrap(~timepoint) +
+      scale_fill_gradient(low = "#e8f4f8", high = "#0072B2") +
+      labs(x = "Inferred", y = "True", fill = "N SVs") +
+      theme(panel.grid  = element_blank(),
+            axis.line   = element_blank(),
+            axis.ticks  = element_blank())
+  } else {
+    p_D2 <- ggplot() +
+      annotate("text", x = 0.5, y = 0.5, label = "Insufficient data", size = 4) +
+      theme_void()
+  }
+
+  p_a2_2 <- (p_A2 | p_B2) / (p_C2 | p_D2) +
+    plot_annotation(tag_levels = "A") &
+    theme(plot.tag = element_text(face = "bold", size = 10))
+
+  ggsave(file.path(out_dir, "fig_a2_2.pdf"), p_a2_2,
+         width = 7, height = 6, useDingbats = FALSE)
+  p_a2_2
+}
+```
+
+## Multi-covariate correlation analysis (A2h)
+
+```{r covariate-helpers}
+build_covariate_long <- function(results_df, cov_prefix, log_transform = TRUE) {
+  cov_long <- results_df %>%
+    select(boot, purity, experiment,
+           matches(paste0("^", cov_prefix,
+                          "(trunk|sub1|sub2)_(pre|post)$"))) %>%
+    pivot_longer(
+      cols     = matches(paste0("^", cov_prefix,
+                                "(trunk|sub1|sub2)_(pre|post)$")),
+      names_to = "metric", values_to = "covariate"
+    ) %>%
+    mutate(
+      clone     = sub(paste0(cov_prefix,
+                             "(trunk|sub1|sub2)_(pre|post)"), "\\1", metric),
+      timepoint = sub(paste0(cov_prefix,
+                             "(trunk|sub1|sub2)_(pre|post)"), "\\2", metric)
+    ) %>%
+    select(-metric)
+
+  err_long <- results_df %>%
+    select(boot, purity, experiment,
+           matches("^ccf_err_(trunk|sub1|sub2)_(pre|post)$")) %>%
+    pivot_longer(
+      cols     = matches("^ccf_err_(trunk|sub1|sub2)_(pre|post)$"),
+      names_to = "metric", values_to = "signed_error"
+    ) %>%
+    mutate(
+      clone     = sub("ccf_err_(trunk|sub1|sub2)_(pre|post)", "\\1", metric),
+      timepoint = sub("ccf_err_(trunk|sub1|sub2)_(pre|post)", "\\2", metric)
+    ) %>%
+    select(-metric)
+
+  cov_long %>%
+    left_join(err_long,
+              by = c("boot", "purity", "experiment", "clone", "timepoint")) %>%
+    filter(!is.na(signed_error), !is.na(covariate),
+           if (log_transform) covariate > 0 else TRUE) %>%
+    mutate(
+      covariate_val = if (log_transform) log10(covariate) else covariate,
+      replicate     = paste0("b", boot, "_p", purity, "_", experiment),
+      clone         = factor(clone,
+                             levels = c("trunk", "sub1", "sub2"),
+                             labels = c("Trunk", "Subclone 1", "Subclone 2")),
+      timepoint     = factor(timepoint,
+                             levels = c("pre", "post"),
+                             labels = c("Pre", "Post"))
+    )
+}
+
+run_covariate_analysis <- function(df_in, label, n_boot_ci = 1000L) {
+  clone_levels <- levels(df_in$clone)
+
+  spearman_results <- lapply(clone_levels, function(cl) {
+    sub_df  <- df_in %>% filter(clone == cl)
+    rep_ids <- unique(sub_df$replicate)
+    if (nrow(sub_df) < 3L) return(NULL)
+    obs_rho <- cor(sub_df$covariate_val, sub_df$signed_error,
+                   method = "spearman", use = "complete.obs")
+    boot_rhos <- replicate(n_boot_ci, {
+      sampled <- sample(rep_ids, length(rep_ids), replace = TRUE)
+      bs_df   <- bind_rows(lapply(sampled,
+                                  function(r) sub_df[sub_df$replicate == r, ]))
+      cor(bs_df$covariate_val, bs_df$signed_error,
+          method = "spearman", use = "complete.obs")
+    })
+    ci <- quantile(boot_rhos, c(0.025, 0.975), na.rm = TRUE)
+    data.frame(clone = cl, rho = obs_rho,
+               ci_lo = ci[[1]], ci_hi = ci[[2]],
+               n_obs = nrow(sub_df), n_reps = length(rep_ids),
+               stringsAsFactors = FALSE)
+  })
+  spearman_df <- bind_rows(Filter(Negate(is.null), spearman_results))
+
+  r2_df <- bind_rows(lapply(clone_levels, function(cl) {
+    sub_df <- df_in %>% filter(clone == cl)
+    if (nrow(sub_df) < 3L) return(NULL)
+    fit <- lm(signed_error ~ covariate_val, data = sub_df)
+    data.frame(clone = cl,
+               r_squared = summary(fit)$r.squared,
+               stringsAsFactors = FALSE)
+  }))
+
+  lrt_pval <- NA_real_
+  m_full <- tryCatch(
+    lmer(signed_error ~ covariate_val * clone + (1 | replicate),
+         data = df_in, REML = FALSE),
+    error = function(e) { cat("  lmer (full) failed:", conditionMessage(e), "\n"); NULL }
+  )
+  m_null <- tryCatch(
+    lmer(signed_error ~ covariate_val + clone + (1 | replicate),
+         data = df_in, REML = FALSE),
+    error = function(e) { cat("  lmer (null) failed:", conditionMessage(e), "\n"); NULL }
+  )
+  if (!is.null(m_full) && !is.null(m_null)) {
+    lrt_res  <- anova(m_null, m_full)
+    lrt_pval <- lrt_res[["Pr(>Chisq)"]][2]
+    coefs    <- as.data.frame(coef(summary(m_full)))
+    coefs$term <- rownames(coefs)
+    cat(sprintf("  Interaction LRT p = %.4g\n", lrt_pval))
+    write_csv(coefs,
+      file.path(out_dir, sprintf("mixed_model_coefs_%s.csv", label)))
+  }
+
+  list(spearman_df = spearman_df, r2_df = r2_df, lrt_pval = lrt_pval)
+}
+
+make_covariate_fig <- function(df_in, spearman_df, r2_df, x_label, title) {
+  clone_colors <- c("Trunk" = "#555555", "Subclone 1" = "#009E73", "Subclone 2" = "#CC79A7")
+  rho_labels <- spearman_df %>%
+    mutate(clone = factor(clone, levels = c("Trunk", "Subclone 1", "Subclone 2"))) %>%
+    left_join(r2_df, by = "clone") %>%
+    mutate(label = sprintf(
+      "atop(rho == %.2f~'['*%.2f*','~%.2f*']',~R^2 == %.3f)",
+      rho, ci_lo, ci_hi, r_squared)) %>%
+    left_join(
+      df_in %>% group_by(clone) %>%
+        summarise(x_pos = min(covariate_val, na.rm = TRUE), .groups = "drop"),
+      by = "clone"
+    )
+
+  df_in %>%
+    ggplot(aes(x = covariate_val, y = signed_error,
+               color = clone, fill = clone)) +
+    geom_hline(yintercept = 0, linetype = "dotted", color = "grey50") +
+    geom_point(alpha = 0.40, size = 1.6, shape = 16) +
+    geom_smooth(method = "lm", formula = y ~ x, se = TRUE,
+                alpha = 0.15, linewidth = 0.9) +
+    geom_text(data = rho_labels,
+              aes(x = x_pos, y = Inf, label = label),
+              hjust = 0, vjust = 1.4, size = 3.2, color = "black",
+              parse = TRUE, inherit.aes = FALSE) +
+    scale_color_manual(values = clone_colors) +
+    scale_fill_manual( values = clone_colors) +
+    facet_wrap(~clone, scales = "free_x", ncol = 1) +
+    labs(x = x_label, y = "Signed CCF error (true − inferred)",
+         caption = sprintf("n = %d (replicate × clone × timepoint).", nrow(df_in))) +
+    theme(legend.position = "none",
+          plot.caption    = element_text(hjust = 0, size = 7, colour = "grey40"))
+}
+```
+
+```{r covariate-analysis, fig.width=4, fig.height=8}
+set.seed(42L)
+
+covariates <- list(
+  list(prefix        = "eff_cov_",
+       label         = "ao",
+       display_label = "Mean AO (SVtyper)",
+       x_label       = expression(log[10](mean~AO~per~clone)),
+       log_transform = TRUE),
+  list(prefix        = "bpc_",
+       label         = "bpc",
+       display_label = "Number of SVs assigned to clone",
+       x_label       = expression(log[10](n~SVs~assigned~to~clone)),
+       log_transform = TRUE),
+  list(prefix        = "seg_len_",
+       label         = "seg_len",
+       display_label = "Mean SV segment length",
+       x_label       = expression(log[10](mean~SV~length~(bp))),
+       log_transform = TRUE),
+  list(prefix        = "ascn_",
+       label         = "ascn",
+       display_label = "ASCN mismatch fraction",
+       x_label       = "ASCN mismatch fraction (non-diploid)",
+       log_transform = FALSE)
+)
+
+all_cov_results <- lapply(covariates, function(cov) {
+  cat(sprintf("\n--- Covariate: %s ---\n", cov$display_label))
+  results_for_cov <- if (cov$label == "bpc") {
+    all_results %>%
+      mutate(
+        bpc_trunk_pre  = bpc_trunk_pre + bpc_trunk_post,
+        bpc_sub1_pre   = bpc_sub1_pre  + bpc_sub1_post,
+        bpc_sub2_pre   = bpc_sub2_pre  + bpc_sub2_post,
+        bpc_trunk_post = bpc_trunk_pre,
+        bpc_sub1_post  = bpc_sub1_pre,
+        bpc_sub2_post  = bpc_sub2_pre
+      )
+  } else all_results
+  df_c <- build_covariate_long(results_for_cov, cov$prefix, cov$log_transform)
+  if (cov$label == "bpc") {
+    df_c <- df_c %>%
+      group_by(boot, purity, experiment, clone, replicate,
+               covariate, covariate_val) %>%
+      summarise(signed_error = mean(signed_error, na.rm = TRUE),
+                .groups = "drop")
+  }
+  cat(sprintf("  n = %d observations\n", nrow(df_c)))
+  if (nrow(df_c) < 10L) { cat("  Insufficient data, skipping.\n"); return(NULL) }
+
+  write_csv(df_c, file.path(out_dir, sprintf("covariate_data_%s.csv", cov$label)))
+
+  res <- run_covariate_analysis(df_c, cov$label)
+  cat("  Spearman rho [95% CI]:\n")
+  print(res$spearman_df, digits = 3)
+
+  spearman_with_r2 <- res$spearman_df %>% left_join(res$r2_df, by = "clone")
+  write_csv(spearman_with_r2, file.path(out_dir, sprintf("spearman_%s.csv", cov$label)))
+
+  write_csv(
+    data.frame(covariate = cov$label, lrt_pval = res$lrt_pval),
+    file.path(out_dir, sprintf("lrt_pval_%s.csv", cov$label))
+  )
+
+  p <- make_covariate_fig(df_c, res$spearman_df, res$r2_df, cov$x_label,
+                          sprintf("Signed CCF error vs. %s", cov$display_label))
+  out_pdf <- file.path(out_dir, sprintf("fig_a2_3_%s.pdf", cov$label))
+  ggsave(out_pdf, p, width = 4, height = 8, useDingbats = FALSE)
+  print(p)
+
+  c(list(df = df_c, label = cov$label, display_label = cov$display_label), res)
+})
+names(all_cov_results) <- vapply(covariates, `[[`, character(1), "label")
+```
+
+## Spearman summary (all covariates)
+
+```{r spearman-summary}
+spearman_rows <- bind_rows(lapply(all_cov_results, function(r) {
+  if (is.null(r)) return(NULL)
+  r$spearman_df %>%
+    left_join(r$r2_df, by = "clone") %>%
+    mutate(covariate = r$display_label, lrt_pval = r$lrt_pval)
+}))
+if (nrow(spearman_rows)) {
+  spearman_summary <- spearman_rows %>%
+    select(covariate, clone, rho, ci_lo, ci_hi, r_squared, lrt_pval, n_obs)
+} else {
+  spearman_summary <- tibble(
+    covariate = character(), clone = character(), rho = double(),
+    ci_lo = double(), ci_hi = double(), r_squared = double(),
+    lrt_pval = double(), n_obs = integer()
+  )
+}
+
+spearman_summary
+write_csv(spearman_summary, file.path(out_dir, "spearman_summary_all.csv"))
+
+ao_res <- all_cov_results[["ao"]]
+if (!is.null(ao_res)) {
+  write_csv(ao_res$df,        file.path(out_dir, "coverage_correlation_data.csv"))
+  write_csv(ao_res$spearman_df, file.path(out_dir, "spearman_results.csv"))
+  file.copy(file.path(out_dir, "fig_a2_3_bpc.pdf"),
+            file.path(out_dir, "fig_a2_3.pdf"), overwrite = TRUE)
+}
+```
+
+## SV-type stratified analysis
+
+```{r sv-type-stratified, fig.width=7, fig.height=4}
+if (!is.null(sv_detail_df) && nrow(sv_detail_df) > 0L) {
+
+  err_ref <- all_results %>%
+    select(boot, purity, experiment,
+           matches("^ccf_err_(trunk|sub1|sub2)_(pre|post)$")) %>%
+    pivot_longer(
+      cols     = matches("^ccf_err_(trunk|sub1|sub2)_(pre|post)$"),
+      names_to = "metric", values_to = "signed_error"
+    ) %>%
+    mutate(
+      clone     = sub("ccf_err_(trunk|sub1|sub2)_(pre|post)", "\\1", metric),
+      timepoint = sub("ccf_err_(trunk|sub1|sub2)_(pre|post)", "\\2", metric),
+      replicate = paste0("b", boot, "_p", purity, "_", experiment),
+      clone     = factor(clone, levels = c("trunk", "sub1", "sub2"),
+                         labels = c("Trunk", "Subclone 1", "Subclone 2")),
+      timepoint = factor(timepoint, levels = c("pre", "post"),
+                         labels = c("Pre", "Post"))
+    ) %>%
+    select(-metric) %>%
+    filter(!is.na(signed_error))
+
+  sv_labeled <- sv_detail_df %>%
+    mutate(
+      replicate = paste0("b", boot, "_p", purity, "_", experiment),
+      clone     = factor(clone, levels = c("trunk", "sub1", "sub2"),
+                         labels = c("Trunk", "Subclone 1", "Subclone 2")),
+      timepoint = factor(timepoint, levels = c("pre", "post"),
+                         labels = c("Pre", "Post")),
+      sv_type   = toupper(sv_type)
+    ) %>%
+    left_join(err_ref, by = c("replicate", "clone", "timepoint",
+                               "boot", "purity", "experiment"))
+
+  sv_agg <- sv_labeled %>%
+    group_by(replicate, clone, timepoint, sv_type) %>%
+    summarise(
+      mean_ao      = mean(ao,            na.rm = TRUE),
+      bpc_count    = n(),
+      mean_seg_len = mean(sv_len,        na.rm = TRUE),
+      ascn_frac    = mean(is_nondiploid, na.rm = TRUE),
+      signed_error = first(signed_error),
+      .groups = "drop"
+    ) %>%
+    filter(!is.na(signed_error))
+
+  write_csv(sv_agg, file.path(out_dir, "sv_type_stratified_data.csv"))
+
+  sv_cov_defs <- list(
+    list(col = "mean_ao",      log = TRUE,  label = "Mean AO"),
+    list(col = "bpc_count",    log = TRUE,  label = "N SVs assigned"),
+    list(col = "mean_seg_len", log = TRUE,  label = "Mean seg length"),
+    list(col = "ascn_frac",    log = FALSE, label = "ASCN mismatch")
+  )
+
+  strat_rho_rows <- list()
+  for (cov_def in sv_cov_defs) {
+    sv_sub <- sv_agg %>%
+      rename(covariate = !!sym(cov_def$col)) %>%
+      filter(!is.na(covariate),
+             if (cov_def$log) covariate > 0 else TRUE) %>%
+      mutate(covariate_val = if (cov_def$log) log10(covariate) else covariate)
+
+    for (cl in c("Trunk", "Subclone 1", "Subclone 2")) {
+      for (svt in unique(sv_sub$sv_type)) {
+        sub_df <- sv_sub %>% filter(clone == cl, sv_type == svt)
+        if (nrow(sub_df) < 5L) next
+        rho <- cor(sub_df$covariate_val, sub_df$signed_error,
+                   method = "spearman", use = "complete.obs")
+        strat_rho_rows <- c(strat_rho_rows, list(data.frame(
+          covariate = cov_def$label, clone = cl, sv_type = svt,
+          rho = rho, n = nrow(sub_df), stringsAsFactors = FALSE
+        )))
+      }
+    }
+  }
+
+  strat_rho_df <- bind_rows(strat_rho_rows)
+  strat_rho_df
+  write_csv(strat_rho_df, file.path(out_dir, "spearman_sv_type_stratified.csv"))
+
+  if (nrow(strat_rho_df) > 0L) {
+    p_heatmap <- strat_rho_df %>%
+      mutate(clone     = factor(clone, levels = c("Trunk", "Subclone 1", "Subclone 2")),
+             sv_type   = factor(sv_type),
+             covariate = factor(covariate,
+                                levels = c("Mean AO", "N SVs assigned",
+                                           "Mean seg length", "ASCN mismatch"))) %>%
+      ggplot(aes(x = sv_type, y = covariate, fill = rho)) +
+      geom_tile(color = "white", linewidth = 0.5) +
+      geom_text(aes(label = sprintf("%.2f\n(n=%d)", rho, n)),
+                size = 2.5, lineheight = 0.9) +
+      scale_fill_gradient2(low = "#0072B2", mid = "white", high = "#D55E00",
+                           midpoint = 0, limits = c(-1, 1),
+                           name = expression(Spearman~rho)) +
+      facet_wrap(~clone, ncol = 3) +
+      labs(x = "SV type", y = NULL) +
+      theme(axis.text.x = element_text(angle = 30, hjust = 1),
+            panel.grid  = element_blank(),
+            axis.line   = element_blank(),
+            axis.ticks  = element_blank())
+
+    ggsave(file.path(out_dir, "fig_a2_3_sv_type_heatmap.pdf"),
+           p_heatmap, width = 7, height = 4, useDingbats = FALSE)
+    p_heatmap
+  }
+
+} else {
+  message("No SV detail data available for SV-type stratification.")
+}
+```
+
+## Decision rules (AO covariate)
+
+```{r decision-rules}
+if (!is.null(ao_res)) {
+  for (cl in c("Subclone 1", "Subclone 2", "Trunk")) {
+    r <- ao_res$spearman_df[ao_res$spearman_df$clone == cl, ]
+    if (nrow(r) == 0L) { cat(sprintf("  %s: no data\n", cl)); next }
+    if (cl != "Trunk") {
+      met <- r$rho < -0.3 && r$ci_hi < 0
+      cat(sprintf(
+        "  %s: rho = %+.3f [%+.3f, %+.3f]  rho < -0.3 and CI excludes 0: %s\n",
+        cl, r$rho, r$ci_lo, r$ci_hi, if (met) "YES" else "NO"))
+    } else {
+      met <- abs(r$rho) < 0.2 && r$ci_lo < 0 && r$ci_hi > 0
+      cat(sprintf(
+        "  Trunk: rho = %+.3f [%+.3f, %+.3f]  |rho| < 0.2 and CI includes 0: %s\n",
+        r$rho, r$ci_lo, r$ci_hi, if (met) "YES" else "NO"))
+    }
+  }
+  cat(sprintf("  Interaction LRT (AO): p = %.4g  p < 0.05: %s\n",
+              ao_res$lrt_pval,
+              if (!is.na(ao_res$lrt_pval) && ao_res$lrt_pval < 0.05) "YES" else "NO"))
+}
+```

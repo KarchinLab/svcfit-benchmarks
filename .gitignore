@@ -1,0 +1,32 @@
+# Per-machine configuration
+config.local.sh
+
+# Run outputs and logs (runs write outside the repository)
+log/
+logs/
+*.out
+*.err
+slurm-*.out
+
+# Large references and indices
+*.fa
+*.fa.fai
+*.fasta
+*.amb
+*.ann
+*.bwt
+*.pac
+*.sa
+*.dict
+
+# Sequencing data and caches
+*.bam
+*.bai
+*.cram
+*.vcf.gz
+*.tbi
+__pycache__/
+.Rhistory
+.RData
+.Rproj.user/
+.DS_Store

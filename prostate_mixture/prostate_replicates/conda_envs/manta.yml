@@ -1,0 +1,46 @@
+name: manta
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - _libgcc_mutex=0.1=main
+  - _openmp_mutex=5.1=1_gnu
+  - bz2file=0.98=py27_1
+  - ca-certificates=2023.12.12=h06a4308_0
+  - certifi=2020.6.20=pyhd3eb1b0_3
+  - cutadapt=1.18=py27h14c3975_1
+  - dbus=1.13.18=hb2f20db_0
+  - expat=2.5.0=h6a678d5_0
+  - fastqc=0.12.1=hdfd78af_0
+  - font-ttf-dejavu-sans-mono=2.37=hd3eb1b0_0
+  - fontconfig=2.14.1=h4c34cd2_2
+  - freetype=2.12.1=h4a9f257_0
+  - gdbm=1.18=hd4cb3f1_4
+  - glib=2.69.1=he621ea3_2
+  - icu=73.1=h6a678d5_0
+  - libffi=3.4.4=h6a678d5_0
+  - libgcc-ng=11.2.0=h1234567_1
+  - libgomp=11.2.0=h1234567_1
+  - libpng=1.6.39=h5eee18b_0
+  - libstdcxx-ng=11.2.0=h1234567_1
+  - libuuid=1.41.5=h5eee18b_0
+  - libxcb=1.15=h7f8727e_0
+  - libxml2=2.10.4=hf1b16e4_1
+  - manta=1.6.0=h9ee0642_2
+  - ncurses=6.4=h6a678d5_0
+  - openjdk=11.0.13=h87a67e3_0
+  - pcre=8.45=h295c915_0
+  - perl=5.34.0=h5eee18b_2
+  - pigz=2.6=h27cfd23_0
+  - pip=19.3.1=py27_0
+  - python=2.7.18=h42bf7aa_3
+  - readline=8.2=h5eee18b_0
+  - setuptools=44.0.0=py27_0
+  - sqlite=3.41.2=h5eee18b_0
+  - tk=8.6.12=h1ccaba5_0
+  - trim-galore=0.6.10=hdfd78af_0
+  - wheel=0.37.1=pyhd3eb1b0_0
+  - xopen=0.7.3=py_0
+  - xz=5.4.5=h5eee18b_0
+  - zlib=1.2.13=h5eee18b_0

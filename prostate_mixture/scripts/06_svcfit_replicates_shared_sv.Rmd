@@ -1,0 +1,221 @@
+---
+title: "Prostate mixture: SVCFit setup and helpers"
+output: html_document
+---
+
+<!-- Only these two chunks are used; 06a_run_svcfit_chrx.R evaluates them. -->
+
+```{r setup, include=FALSE, message=FALSE}
+
+# Derive the publication root from this Rmd's location so any user can
+# download the folder and knit without editing paths.
+# Rmd lives at: <pub_root>/pipeline/06_svcfit_replicates_shared_sv.Rmd
+## Paths come from config.local.sh through visor_config.R, the repo's R-side reader.
+##
+## visor_config.R is found by walking up rather than by a relative path, because knitr's working
+## directory depends on how the render was invoked.
+local({
+    d <- tryCatch({
+        inp <- if (requireNamespace("knitr", quietly = TRUE)) knitr::current_input(dir = TRUE) else NULL
+        if (!is.null(inp) && nzchar(inp)) dirname(normalizePath(inp)) else getwd()
+    }, error = function(e) getwd())
+    repeat {
+        f <- file.path(d, "visor_config.R")
+        if (file.exists(f)) { source(f, local = FALSE); return(invisible()) }
+        if (dirname(d) == d) stop("visor_config.R not found above ", getwd())
+        d <- dirname(d)
+    }
+})
+.cfg <- visor_config(c("VISOR_ROOT", "PROSTATE_DATA_DIR"))
+VISOR_ROOT <- .cfg$VISOR_ROOT
+
+## PM_PUB_ROOT still overrides, for knitting against a downloaded publication folder rather than
+## the working tree.
+pub_root <- Sys.getenv("PM_PUB_ROOT", .cfg$PROSTATE_DATA_DIR)
+
+##need gtools, library(RColorBrewer)
+## SVCFit library: an installed SVCFit at commit e0d7e0b (see tools/run_svcfit_self_evaluation.sh).
+## Required, so a different SVCFit on the default library path cannot be picked up by accident.
+SVCFIT_RLIB <- Sys.getenv("SVCFIT_RLIB", "")
+if (!nzchar(SVCFIT_RLIB) || !dir.exists(SVCFIT_RLIB)) stop("set SVCFIT_RLIB to an SVCFit library")
+.libPaths(c(SVCFIT_RLIB, .libPaths()))
+library(SVCFit)
+## The hemizygous entry points must be present.
+for (.f in c("hemizygous_del_svcf", "hemizygous_dup_svcf", "resolve_hemizygous_svcf")) {
+  if (!exists(.f, where = asNamespace("SVCFit"), inherits = FALSE))
+    stop("SVCFit loaded from ", dirname(getNamespaceInfo("SVCFit", "path")),
+         " has no ", .f, "()")
+}
+library(dplyr)
+library(GenomicRanges)
+## ccube is needed ONLY by the SVclone half (MapVaf2CcfPyClone, in the truth-CCF-assisted
+## computation). Known CCF selects multiplicity; this is not truth-CN assistance.
+## Loaded only if available, so the SVCFit path can run in an environment without ccube.
+if (requireNamespace("ccube", quietly = TRUE)) {
+  library(ccube)
+} else {
+  message("ccube not available: the SVclone half of this file cannot run. ",
+          "The SVCFit path does not use it.")
+}
+library(tidyr)
+library(purrr)
+## data.table is used by the downstream summarising/plotting chunks, not by analyze(). Conditional
+## for the same reason as ccube: it is absent from the `svcfit` env, which is the one that can run
+## the SVCFit path.
+if (requireNamespace("data.table", quietly = TRUE)) library(data.table) else
+  message("data.table not available: the summarising and plotting chunks cannot run.")
+library(ggplot2)
+library(stringr)
+#library(rstatix)
+
+# for svclone: gtools, plyr
+## These helpers serve the SVclone half only, so a failure to source them is not fatal to the
+## SVCFit path. They are read from the repository, not from the data tree.
+for (.h in c('metrics_funcs.R', 'util.R', 'load.R')) {
+  .p <- file.path(VISOR_ROOT, 'prostate_mixture', 'scripts', 'helper', .h)
+  tryCatch(source(.p), error = function(e)
+    message(sprintf("could not source %s (%s). The SVclone half of this file needs it; ",
+                    .h, conditionMessage(e)),
+            "the SVCFit path does not."))
+}
+## plyr is attached by metrics_funcs.R and masks dplyr's summarise/mutate, hence this detach. Guarded
+## because when metrics_funcs.R does not source -- see above -- plyr was never attached and detach()
+## errors with "invalid 'name' argument", killing the run over a package that is not present.
+if ("package:plyr" %in% search()) detach("package:plyr", unload = TRUE)
+
+set.seed(42)
+
+## Each overridable.
+truth_dir     <- Sys.getenv("PM_TRUTH_DIR", file.path(pub_root, 'in_silico_true'))      # bM.vcf / gM.vcf
+rep_base_dir  <- Sys.getenv("PM_REP_BASE",  file.path(pub_root, 'prostate_replicates')) # rep1/ … rep30/
+revisions_dir <- Sys.getenv("PM_OUT_DIR",   file.path(pub_root, 'prostate_replicates')) # PDFs / RDS
+
+reps      <- paste0('rep', 1:30)
+exp_3     <- c("3m19","3m28","3m37","3m46","3m55","3m64","3m73","3m82","3m91")
+exp_45    <- c("4m","5m")
+all_exper <- c(exp_3, exp_45)
+svc_order <- c(exp_3, exp_45)
+
+x_lab <- c('10-90','20-80','30-70','40-60','50-50',
+           '60-40','70-30','80-20','90-10','4 clust','5 clust')
+```
+
+```{r helpers}
+# Run SVCFit for one replicate x condition via the run_svcfit() master function.
+# Package load_data() now handles hs37d5 bare chromosome names correctly by
+# applying paste0("chr", sub("^chr", "", CHROM)) to all inputs consistently.
+analyze <- function(exper, base_dir) {
+  tryCatch({
+    # Extract FACET-derived purity from SVClone RData (ssm$purity is written by
+    # make_input.R from the FACET fit object and passed to SVClone as input).
+    svc_rdata <- file.path(base_dir, 'svclone', exper, exper,
+                           'ccube_out', paste0(exper, '_ccube_sv_results.RData'))
+    load(svc_rdata)
+    pur <- mean(doubleBreakPtsRes$ssm$purity)
+
+    ## ---- chrX, hemizygous --------------------------------------------------
+    ## The mixture subjects are male: X is single-copy and carries no heterozygous germline SNPs,
+    ## so FACETS returns "norm" for every X segment -- the absence of a call, not evidence of
+    ## copy-neutrality. cn_bar therefore comes from read depth (stage 04a) joined per SV (04b),
+    ## and bg_cn is the flanking copy number kappa that the CNV-first deletion form needs.
+    ##
+    ## The tables are written with CHROM = "chrX", matching load_data()'s normalisation, NOT the
+    ## "X" the VCFs use. See 04b's header: a table saying "X" misses every lookup silently.
+    ##
+    ## Both are OPTIONAL here. 4m and 5m have no X at all -- they are built from chromosome-split
+    ## sources that cover autosomes only -- so they have no tables, and passing NULL leaves
+    ## run_svcfit's behaviour exactly as it was before this change.
+    cn_bar_f <- file.path(base_dir, 'cn_bar', paste0(exper, '_cn_bar.csv'))
+    bg_cn_f  <- file.path(base_dir, 'cn_bar', paste0(exper, '_bg_cn.csv'))
+    hemi_cn_bar <- if (file.exists(cn_bar_f)) read.csv(cn_bar_f, stringsAsFactors = FALSE) else NULL
+    hemi_bg_cn  <- if (file.exists(bg_cn_f))  read.csv(bg_cn_f,  stringsAsFactors = FALSE) else NULL
+    if (is.null(hemi_cn_bar) && !exper %in% c('4m', '5m'))
+      warning(sprintf("%s / %s: no cn_bar table; chrX SVs will be left unresolved. Run 04a and 04b.",
+                      basename(base_dir), exper), call. = FALSE)
+
+    res <- run_svcfit(
+      p_het   = file.path(base_dir, 'SNP', paste0('het_near_sv_', exper, '.vcf')),
+      p_onsv  = file.path(base_dir, 'SNP', paste0('het_on_sv_', exper, '.vcf')),
+      p_sv    = file.path(base_dir, 'prostate_vcfs', paste0('svt_', exper, '.vcf')),
+      p_cnv   = file.path(base_dir, 'facet', exper, paste0(exper, '.bed')),
+      samp    = 'prostate',
+      exper   = exper,
+      ## chrX ADDED. This was paste0('chr', 1:22) -- autosomes only -- so no chrX SV reached the
+      ## estimator at all, whatever else was configured.
+      chr_lst = c(paste0('chr', 1:22), 'chrX'),
+      hemizygous_chr = 'chrX',
+      hemi_cn_bar    = hemi_cn_bar,
+      hemi_bg_cn     = hemi_bg_cn
+    )
+    res$svcf$purity <- pur
+    res$svcf
+  }, error = function(e) {
+    cat(sprintf("SVCFit failed [%s / %s]: %s\n", basename(base_dir), exper, conditionMessage(e)))
+    NULL
+  })
+}
+
+analyze_svc <- function(resultFolder, wd_truth, base_dir){
+  sv_data <- NULL
+  for(i in seq(1, 9, 1)) {
+    print(i)
+    mix <- paste(i, 10-i, sep='-')
+    basename <- paste('3m', i, 10-i, sep='')
+    ################################################################################################
+    # SVs
+    ################################################################################################
+    ccubeResultRDataFile = paste0(resultFolder, '/', basename, '/', basename, '/ccube_out/',basename, '_ccube_sv_results.RData')
+    load(ccubeResultRDataFile)
+    svs <- data.frame(data='svs', doubleBreakPtsRes$ssm, mix=mix, p1=i, p2=10-i)
+    
+    svs$mutation_id=sub("(.*):[+-]_(.*):[+-]", "\\1:\\2", svs$mutation_id)
+    
+    svin <- read.delim(paste0(resultFolder, '/', basename, '/', basename,'/', basename, '_filtered_svs.tsv'))
+    svin$sv <- paste(svin$chr1, svin$pos1, svin$chr2, svin$pos2, sep=':')
+    svin$mutation_id <- paste(svin$chr1, svin$pos1,svin$chr2, svin$pos2, sep=':')
+    svs <- inner_join(svs, svin, by='mutation_id')
+    svs <- attach_001_ground_truth_svs(wd_truth, svs)
+    
+    pp <- read.delim(paste0(resultFolder, '/', basename, '/', basename,'/purity_ploidy.txt'))
+    pur <- pp$purity; pl <- pp$ploidy
+    af <- 1 - (pur / pl)
+    gains <- svs$classification%in%c('DUP','INTDUP')
+    
+    svs$norm1_adjusted <- svs$norm1; svs$norm2_adjusted <- svs$norm2;
+    svs$norm1_adjusted[gains] <- svs$norm1_adjusted[gains] * af
+    svs$norm2_adjusted[gains] <- svs$norm2_adjusted[gains] * af
+    svs$norm_cn <- 2; svs$norm_cn[svs$chr1%in%c('X','Y','MT')] <- 1
+    svs$true_ccf <- 1
+    svs[svs$sample%in%'bM_only', 'true_ccf'] <- svs$p1[svs$sample%in%'bM_only']/10
+    svs[svs$sample%in%'gM_only', 'true_ccf'] <- svs$p2[svs$sample%in%'gM_only']/10
+    rownames(svs) <- 1:nrow(svs)
+    
+    x <- t(data.frame(apply(svs, 1, get_true_sc_cn_by_side, pur=pur, side=1)))
+    svs$true_cn1 <- x[,1]
+    svs$wtotal_cn1 <- x[,2]
+    svs$pv1 <- x[,3]
+    svs$best_ccf1 <- x[,4]
+    
+    x <- t(data.frame(apply(svs, 1, get_true_sc_cn_by_side, pur=pur, side=2)))
+    svs$true_cn2 <- x[,1]
+    svs$wtotal_cn2 <- x[,2]
+    svs$pv2 <- x[,3]
+    svs$best_ccf2 <- x[,4]
+    svs$purity=pur
+    
+    sv_data <- rbind(sv_data, svs)
+  }
+  hiclust_data<- NULL
+  for(p1 in c('4m', '5m')) {
+    x <- load_hiclus_svs(p1, base_dir, wd_truth)
+    x$best_ccf <- as.numeric(apply(x[,c('best_ccf1', 'best_ccf2')], 1, mean))
+    hiclust_data <- rbind(hiclust_data, x)
+  }
+  xx=hiclust_data %>% select(mix, best_ccf, mutation_id, true_ccf, purity)
+  yy=sv_data %>% mutate(best_ccf=(best_ccf1+best_ccf2)/2) %>% select(mix, best_ccf, mutation_id, true_ccf, purity)
+  final =rbind(xx,yy)
+  return(final)
+}
+
+
+```

@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: "If you use these workflows, please cite the paper below."
+title: "SVCFit benchmark workflows"
+version: "1.0.0"
+license: MIT
+repository-code: "https://github.com/KarchinLab/svcfit-benchmarks"
+authors:
+  - family-names: Liu
+    given-names: Yunzhou
+  - family-names: Lai
+    given-names: Jiaying
+  - family-names: Yang
+    given-names: Yi
+  - family-names: Karchin
+    given-names: Rachel
+preferred-citation:
+  type: article
+  title: "Longitudinal structural variant phylogenies define tumor evolution under therapeutic selection pressure in metastatic prostate cancer"
+  journal: "npj Precision Oncology"
+  authors:
+    - family-names: Liu
+      given-names: Yunzhou
+    - family-names: Lai
+      given-names: Jiaying
+    - family-names: Yang
+      given-names: Yi
+    - family-names: Markowski
+      given-names: Mark C.
+    - family-names: Antonarakis
+      given-names: Emmanuel S.
+    - family-names: De Marzo
+      given-names: Angelo M.
+    - family-names: Yegnasubramanian
+      given-names: Srinivasan
+    - family-names: Wood
+      given-names: Laura D.
+    - family-names: Sena
+      given-names: Laura A.
+    - family-names: Karchin
+      given-names: Rachel

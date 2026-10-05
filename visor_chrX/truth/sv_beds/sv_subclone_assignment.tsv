@@ -1,0 +1,220 @@
+set	CHROM	start	end	class	info	membership
+e1	chrX	2832936	2932935	inversion	None	clonal
+e1	chrX	2970776	3070775	deletion	None	clonal
+e1	chrX	3563485	3663484	inversion	None	clonal
+e1	chrX	3818519	3918518	inversion	None	clonal
+e1	chrX	4672128	4772127	tandem duplication	2	clonal
+e1	chrX	5233503	5333502	deletion	None	clonal
+e1	chrX	6543875	6643874	tandem duplication	2	clonal
+e1	chrX	9603605	9703604	inversion	None	clonal
+e1	chrX	10232079	10332078	inversion	None	clonal
+e1	chrX	11063285	11163284	inversion	None	clonal
+e1	chrX	11695441	11795440	tandem duplication	2	clonal
+e1	chrX	12923319	13023318	deletion	None	clonal
+e1	chrX	13623023	13723022	deletion	None	clonal
+e1	chrX	13904122	14004121	deletion	None	clonal
+e1	chrX	15168670	15268669	inversion	None	clonal
+e1	chrX	15302420	15402419	tandem duplication	2	clonal
+e1	chrX	15620072	15720071	deletion	None	clonal
+e1	chrX	18715859	18815858	tandem duplication	2	clonal
+e1	chrX	19262220	19362219	deletion	None	clonal
+e1	chrX	19370030	19470029	inversion	None	clonal
+e1	chrX	19940500	20040499	inversion	None	clonal
+e1	chrX	27548664	27648663	inversion	None	clonal
+e1	chrX	32561614	32661613	tandem duplication	2	clonal
+e1	chrX	33922285	34022284	deletion	None	clonal
+e1	chrX	34425887	34525886	deletion	None	clonal
+e1	chrX	36559352	36659351	deletion	None	clonal
+e1	chrX	40112604	40212603	tandem duplication	2	clonal
+e1	chrX	40270712	40370711	deletion	None	clonal
+e1	chrX	40379921	40479920	deletion	None	clonal
+e1	chrX	42127066	42227065	deletion	None	clonal
+e1	chrX	43132234	43232233	inversion	None	clonal
+e1	chrX	43940261	44040260	deletion	None	clonal
+e1	chrX	45081984	45181983	deletion	None	clonal
+e1	chrX	45587683	45687682	inversion	None	clonal
+e1	chrX	48302805	48402804	deletion	None	clonal
+e1	chrX	48428654	48528653	tandem duplication	2	clonal
+e1	chrX	51997400	52097399	inversion	None	c2_private
+e1	chrX	52835055	52935054	tandem duplication	2	c2_private
+e1	chrX	54189756	54289755	deletion	None	c2_private
+e1	chrX	64367754	64467753	tandem duplication	2	c2_private
+e1	chrX	64652388	64752387	tandem duplication	2	c2_private
+e1	chrX	65183647	65283646	tandem duplication	2	c2_private
+e1	chrX	66718070	66818069	deletion	None	c2_private
+e1	chrX	71456470	71556469	deletion	None	c2_private
+e1	chrX	71644359	71744358	inversion	None	c2_private
+e1	chrX	72325609	72425608	tandem duplication	2	c2_private
+e1	chrX	72503747	72603746	inversion	None	c2_private
+e1	chrX	72713963	72813962	tandem duplication	2	c2_private
+e1	chrX	74443743	74543742	deletion	None	c2_private
+e1	chrX	74715145	74815144	deletion	None	c2_private
+e1	chrX	77762447	77862446	tandem duplication	2	c2_private
+e1	chrX	77949336	78049335	deletion	None	c2_private
+e1	chrX	78985331	79085330	tandem duplication	2	c2_private
+e1	chrX	79917083	80017082	deletion	None	c2_private
+e1	chrX	80341100	80441099	deletion	None	c2_private
+e1	chrX	80990934	81090933	inversion	None	c2_private
+e1	chrX	81587193	81687192	inversion	None	c2_private
+e1	chrX	87271178	87371177	deletion	None	c2_private
+e1	chrX	87448978	87548977	inversion	None	c2_private
+e1	chrX	88270867	88370866	tandem duplication	2	c2_private
+e1	chrX	90711299	90811298	inversion	None	c2_private
+e1	chrX	90824787	90924786	tandem duplication	2	c2_private
+e1	chrX	91490111	91590110	tandem duplication	2	c2_private
+e1	chrX	91681649	91781648	deletion	None	c2_private
+e1	chrX	95021316	95121315	inversion	None	c2_private
+e1	chrX	96185229	96285228	inversion	None	c2_private
+e1	chrX	96365853	96465852	tandem duplication	2	c2_private
+e1	chrX	97185291	97285290	tandem duplication	2	c2_private
+e1	chrX	98120471	98220470	inversion	None	c2_private
+e1	chrX	99739980	99839979	inversion	None	c2_private
+e1	chrX	103682488	103782487	tandem duplication	2	c2_private
+e1	chrX	104390113	104490112	inversion	None	c2_private
+e1	chrX	108688322	108788321	deletion	None	c3_private
+e1	chrX	111452478	111552477	deletion	None	c3_private
+e1	chrX	111980762	112080761	inversion	None	c3_private
+e1	chrX	113794576	113894575	tandem duplication	2	c3_private
+e1	chrX	117215849	117315848	inversion	None	c3_private
+e1	chrX	117341371	117441370	tandem duplication	2	c3_private
+e1	chrX	118267892	118367891	tandem duplication	2	c3_private
+e1	chrX	119806400	119906399	tandem duplication	2	c3_private
+e1	chrX	121150720	121250719	deletion	None	c3_private
+e1	chrX	121649937	121749936	deletion	None	c3_private
+e1	chrX	121838711	121938710	inversion	None	c3_private
+e1	chrX	122642691	122742690	inversion	None	c3_private
+e1	chrX	123084150	123184149	inversion	None	c3_private
+e1	chrX	123745699	123845698	inversion	None	c3_private
+e1	chrX	124051807	124151806	tandem duplication	2	c3_private
+e1	chrX	125192690	125292689	inversion	None	c3_private
+e1	chrX	127616962	127716961	inversion	None	c3_private
+e1	chrX	128638984	128738983	deletion	None	c3_private
+e1	chrX	131507952	131607951	tandem duplication	2	c3_private
+e1	chrX	132155283	132255282	tandem duplication	2	c3_private
+e1	chrX	133100879	133200878	inversion	None	c3_private
+e1	chrX	134248129	134348128	tandem duplication	2	c3_private
+e1	chrX	135191535	135291534	tandem duplication	2	c3_private
+e1	chrX	135574003	135674002	inversion	None	c3_private
+e1	chrX	138065358	138165357	tandem duplication	2	c3_private
+e1	chrX	139008219	139108218	deletion	None	c3_private
+e1	chrX	139757382	139857381	tandem duplication	2	c3_private
+e1	chrX	140733352	140833351	tandem duplication	2	c3_private
+e1	chrX	142533875	142633874	deletion	None	c3_private
+e1	chrX	143689926	143789925	deletion	None	c3_private
+e1	chrX	144987090	145087089	inversion	None	c3_private
+e1	chrX	145425714	145525713	deletion	None	c3_private
+e1	chrX	146887534	146987533	tandem duplication	2	c3_private
+e1	chrX	147373941	147473940	inversion	None	c3_private
+e1	chrX	149020794	149120793	tandem duplication	2	c3_private
+e1	chrX	149123075	149223074	deletion	None	c3_private
+e1	chrX	154292823	154392822	deletion	None	c3_private
+cnv	chrX	7534655	7634654	deletion	None	clonal
+cnv	chrX	10392001	10492000	deletion	None	clonal
+cnv	chrX	12113065	12213064	deletion	None	clonal
+cnv	chrX	12451669	12551668	deletion	None	clonal
+cnv	chrX	12622845	12722844	inversion	None	clonal
+cnv	chrX	14368243	14468242	deletion	None	clonal
+cnv	chrX	16255989	16355988	inversion	None	clonal
+cnv	chrX	18791669	18891668	inversion	None	clonal
+cnv	chrX	18938577	19038576	deletion	None	clonal
+cnv	chrX	20575628	20675627	deletion	None	clonal
+cnv	chrX	20779427	20879426	inversion	None	clonal
+cnv	chrX	21300398	21400397	inversion	None	clonal
+cnv	chrX	22604418	22704417	deletion	None	clonal
+cnv	chrX	22716399	22816398	inversion	None	clonal
+cnv	chrX	25126924	25226923	deletion	None	clonal
+cnv	chrX	28852336	28952335	deletion	None	clonal
+cnv	chrX	30410890	30510889	deletion	None	clonal
+cnv	chrX	31928834	32028833	inversion	None	clonal
+cnv	chrX	32290755	32390754	inversion	None	clonal
+cnv	chrX	33445241	33545240	deletion	None	clonal
+cnv	chrX	33730254	33830253	inversion	None	clonal
+cnv	chrX	34594945	34694944	deletion	None	clonal
+cnv	chrX	34846067	34946066	inversion	None	clonal
+cnv	chrX	35101599	35201598	deletion	None	clonal
+cnv	chrX	35756414	35856413	inversion	None	clonal
+cnv	chrX	38780830	38880829	inversion	None	clonal
+cnv	chrX	39218579	39318578	deletion	None	clonal
+cnv	chrX	39964009	40064008	inversion	None	clonal
+cnv	chrX	40190233	40290232	inversion	None	clonal
+cnv	chrX	41964843	42064842	inversion	None	clonal
+cnv	chrX	45865164	45965163	deletion	None	clonal
+cnv	chrX	46009804	46109803	deletion	None	clonal
+cnv	chrX	46543011	46643010	inversion	None	clonal
+cnv	chrX	47416632	47516631	inversion	None	clonal
+cnv	chrX	48046028	48146027	inversion	None	clonal
+cnv	chrX	49099756	49199755	inversion	None	clonal
+cnv	chrX	49586904	49686903	deletion	None	clonal
+cnv	chrX	51219613	51319612	deletion	None	c2_private
+cnv	chrX	52282733	52382732	inversion	None	c2_private
+cnv	chrX	52828302	52928301	inversion	None	c2_private
+cnv	chrX	53433174	53533173	inversion	None	c2_private
+cnv	chrX	54303323	54403322	inversion	None	c2_private
+cnv	chrX	54996975	55096974	deletion	None	c2_private
+cnv	chrX	56708059	56808058	deletion	None	c2_private
+cnv	chrX	64768560	64868559	inversion	None	c2_private
+cnv	chrX	66999575	67099574	inversion	None	c2_private
+cnv	chrX	67196579	67296578	deletion	None	c2_private
+cnv	chrX	68245435	68345434	deletion	None	c2_private
+cnv	chrX	69313490	69413489	inversion	None	c2_private
+cnv	chrX	69578797	69678796	deletion	None	c2_private
+cnv	chrX	70072789	70172788	inversion	None	c2_private
+cnv	chrX	70415058	70515057	deletion	None	c2_private
+cnv	chrX	70737488	70837487	inversion	None	c2_private
+cnv	chrX	71158330	71258329	inversion	None	c2_private
+cnv	chrX	74974791	75074790	deletion	None	c2_private
+cnv	chrX	75760354	75860353	deletion	None	c2_private
+cnv	chrX	76493731	76593730	inversion	None	c2_private
+cnv	chrX	77427278	77527277	inversion	None	c2_private
+cnv	chrX	77697373	77797372	deletion	None	c2_private
+cnv	chrX	78286754	78386753	deletion	None	c2_private
+cnv	chrX	81211472	81311471	deletion	None	c2_private
+cnv	chrX	83157545	83257544	inversion	None	c2_private
+cnv	chrX	83434710	83534709	inversion	None	c2_private
+cnv	chrX	87748068	87848067	deletion	None	c2_private
+cnv	chrX	89210691	89310690	deletion	None	c2_private
+cnv	chrX	90723254	90823253	deletion	None	c2_private
+cnv	chrX	92586296	92686295	inversion	None	c2_private
+cnv	chrX	94048223	94148222	deletion	None	c2_private
+cnv	chrX	94591766	94691765	inversion	None	c2_private
+cnv	chrX	95097124	95197123	deletion	None	c2_private
+cnv	chrX	95767788	95867787	inversion	None	c2_private
+cnv	chrX	97056317	97156316	inversion	None	c2_private
+cnv	chrX	97804709	97904708	deletion	None	c2_private
+cnv	chrX	100503375	100603374	inversion	None	c2_private
+cnv	chrX	103025775	103125774	inversion	None	c3_private
+cnv	chrX	104858118	104958117	inversion	None	c3_private
+cnv	chrX	105469655	105569654	inversion	None	c3_private
+cnv	chrX	106587021	106687020	inversion	None	c3_private
+cnv	chrX	109684210	109784209	deletion	None	c3_private
+cnv	chrX	112219541	112319540	deletion	None	c3_private
+cnv	chrX	113223197	113323196	deletion	None	c3_private
+cnv	chrX	113522070	113622069	inversion	None	c3_private
+cnv	chrX	115234491	115334490	deletion	None	c3_private
+cnv	chrX	115497064	115597063	deletion	None	c3_private
+cnv	chrX	118728698	118828697	inversion	None	c3_private
+cnv	chrX	119368691	119468690	deletion	None	c3_private
+cnv	chrX	121040239	121140238	deletion	None	c3_private
+cnv	chrX	121783132	121883131	deletion	None	c3_private
+cnv	chrX	126101979	126201978	deletion	None	c3_private
+cnv	chrX	130412338	130512337	inversion	None	c3_private
+cnv	chrX	130947691	131047690	inversion	None	c3_private
+cnv	chrX	131342494	131442493	inversion	None	c3_private
+cnv	chrX	133615367	133715366	inversion	None	c3_private
+cnv	chrX	133841307	133941306	inversion	None	c3_private
+cnv	chrX	135048129	135148128	deletion	None	c3_private
+cnv	chrX	136315184	136415183	inversion	None	c3_private
+cnv	chrX	137740038	137840037	inversion	None	c3_private
+cnv	chrX	142163532	142263531	deletion	None	c3_private
+cnv	chrX	142326428	142426427	inversion	None	c3_private
+cnv	chrX	142852663	142952662	deletion	None	c3_private
+cnv	chrX	143052907	143152906	inversion	None	c3_private
+cnv	chrX	143211943	143311942	deletion	None	c3_private
+cnv	chrX	143832911	143932910	deletion	None	c3_private
+cnv	chrX	144581680	144681679	inversion	None	c3_private
+cnv	chrX	148152530	148252529	deletion	None	c3_private
+cnv	chrX	149252704	149352703	deletion	None	c3_private
+cnv	chrX	151425507	151525506	deletion	None	c3_private
+cnv	chrX	151986036	152086035	inversion	None	c3_private
+cnv	chrX	153163327	153263326	deletion	None	c3_private
+cnv	chrX	153599472	153699471	deletion	None	c3_private
