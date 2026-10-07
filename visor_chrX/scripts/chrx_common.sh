@@ -1,5 +1,5 @@
 #!/bin/bash
-# Shared configuration for the hemizygous chrX simulation (session log §20-§23).
+# Shared configuration for the hemizygous chrX simulation.
 #
 # 3 experiments x 15 conditions = 45 array tasks (0-44).
 #   exp_idx  = SLURM_ARRAY_TASK_ID / 15    (0-2 -> e1, e2, e4)
@@ -11,7 +11,7 @@
 #  12: p80m10 13: p80m30 14: p80m50
 #
 # NOTE: only e1, e2, e4 exist. e3 (in-trans amplification) and e5 (deletion on
-# the other allele) are diploid-only constructs — see §20.1. Indices here are
+# the other allele) are diploid-only constructs. Indices here are
 # POSITIONAL, not the submitted exp numbers: exp_idx 2 is e4.
 
 # --- machine-specific paths ---------------------------------------------------
@@ -51,7 +51,7 @@ HEMI="${HEMI:-chrX}"
 
 # Reference pipeline scripts (externally owned and read-only here)
 REPL_DIR="${REPL_DIR:-$REPLICATES_DIR}"
-SEEDED_PY="${SEEDED_PY:-${REPL_DIR}/scripts/pipeline/visor_seeded.py}"
+SEEDED_PY="${SEEDED_PY:-${VISOR_ROOT}/tree_eval/eval_package/Phylogeny_benchmark/scripts/visor_seeded.py}"
 
 clone_genomes="${BASE_DIR}/truth/fastas/clone_genomes"
 
@@ -90,7 +90,7 @@ CALLS_DIR="${BASE_DIR}/calls${rep_tag}"
 # $V/seg10k_rep2, which keeps the overrides rep-safe without a second knob.
 
 # --- Coverage -----------------------------------------------------------------
-# §21: SHORtS splits coverage by FASTA count, and chrX is present in only one of
+# SHORtS splits coverage by FASTA count, and chrX is present in only one of
 # the two haplotypes, so chrX lands at HALF this value. COV=50 therefore gives
 # chr22 50x and chrX 25x.
 #
@@ -209,7 +209,7 @@ build_short_bed() {
         | sort -k1,1 > "$out"
 }
 
-# §21 GUARD. A contig absent from a haplotype is a WARNING with exit 0, and
+# GUARD. A contig absent from a haplotype is a WARNING with exit 0, and
 # 00_visor_shorts.sh runs `set +o pipefail` precisely to tolerate VISOR warnings.
 # So a contig-name typo would silently halve that contig's coverage and the run
 # would look clean. Assert the warning count is exactly what we intend: one per
@@ -229,7 +229,7 @@ check_warnings() {
 
 # Mean depth at MAPQ>=20 over FIXED WINDOWS.
 #
-# WHOLE-CONTIG MEANS ARE NOT USABLE HERE (§29). `samtools depth -a` scores every
+# WHOLE-CONTIG MEANS ARE NOT USABLE HERE. `samtools depth -a` scores every
 # reference position, including assembly N, at depth 0 — but SHORtS simulates
 # reads only for non-N bases (`Nreads` uses `len(seq_) - Ns`). chr22 is 22.9% N
 # (acrocentric p-arm) against chrX's 0.7%, so a whole-contig ratio reads

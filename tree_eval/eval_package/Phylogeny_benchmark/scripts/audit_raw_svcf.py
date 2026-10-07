@@ -4,9 +4,8 @@ Audit of `mean raw_svcf / p` for non-DUP trunk SVs in diploid background segment
 
 Purpose
 -------
-Verify (and, if necessary, correct) the empirical values in
-`longitudinal/evaluation/boots0_4/ccf_bias_assessment.md` §"Step 1"
-(and the identical table in `publishability_assessment.md` §"Part 3, Step 1").
+Verify (and, if necessary, correct) the empirical values in an earlier
+internal assessment table (not part of this repository).
 
 The original audit reported:
     p=20%: n=277, mean/p = 1.014

@@ -21,7 +21,7 @@ export PUBLICATION_ROOT="${PUBLICATION_ROOT:-$PROJECT_ROOT/05_publication}"
 # shellcheck disable=SC1090
 source "$SVCFIT_RUNTIME_LOADER"
 
-export VISOR_ROOT="${VISOR_ROOT:-$SOFTWARE_ROOT/svcfit_workflows}"
+export VISOR_ROOT="${VISOR_ROOT:-$SOFTWARE_ROOT/svcfit-benchmarks}"
 export CHRX_DIR="${CHRX_DIR:-$ANALYSIS_ROOT/visor_chrx/runs}"
 export REPLICATES_DIR="${REPLICATES_DIR:-$ANALYSIS_ROOT/visor/runs}"
 export TREE_EVAL_DIR="${TREE_EVAL_DIR:-$VISOR_ROOT/tree_eval}"
@@ -54,6 +54,11 @@ fi
 export FACET_HOME="${FACET_HOME:-$SOFTWARE_ROOT/facets}"
 export FACET_SNP_PILEUP="${FACET_SNP_PILEUP:-$FACET_HOME/snp-pileup}"
 export FACET_R_SCRIPT="${FACET_R_SCRIPT:-$FACET_HOME/facet.R}"
+export SAMTOOLS="${SAMTOOLS:-${ENV_VISOR:+$ENV_VISOR/bin/samtools}}"
+# R with DNAcopy for the chromosome X depth segmentation (visor_chrX 06, prostate 04a);
+# built from tools/environments/dnacopy.yml by tools/setup_rockfish_tool_envs.sh.
+export ENV_DNACOPY="${ENV_DNACOPY:-}"
+export CHRX_RSCRIPT="${CHRX_RSCRIPT:-${ENV_DNACOPY:+$ENV_DNACOPY/bin/Rscript}}"
 
 export SHORT_DIR="${SHORT_DIR:-$CHRX_DIR/short}"
 export CALLS_DIR="${CALLS_DIR:-$CHRX_DIR/calls}"
@@ -64,6 +69,10 @@ export SVCFIT_R="${SVCFIT_R:-${RSCRIPT:-$ENV_SVCFIT/bin/Rscript}}"
 export SVCFIT_RUNTIME_LOCKFILE="${SVCFIT_RUNTIME_LOCKFILE:-$ENV_SVCFIT/conda-explicit-linux-64.txt}"
 
 # Optional site scheduler settings. Leave unset to use cluster defaults.
+# Only run_svcfit_and_evaluate.sh and tools/run_svcfit_self_evaluation.sh read
+# all three (25_chrx_rescore_svcfit.sh reads SLURM_PARTITION). For the other
+# launchers, export sbatch's own SBATCH_ACCOUNT, SBATCH_PARTITION and
+# SBATCH_QOS, or edit the #SBATCH headers.
 export SLURM_ACCOUNT="${SLURM_ACCOUNT:-}"
 export SLURM_PARTITION="${SLURM_PARTITION:-}"
 export SLURM_QOS="${SLURM_QOS:-}"

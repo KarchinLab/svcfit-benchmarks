@@ -8,7 +8,7 @@ usage() {
 Usage: run_svcfit_self_evaluation.sh [--dry-run | --submit] [--run-id ID]
 
 Required environment:
-  EXPECTED_WORKFLOW_COMMIT  Audited 40-character svcfit_workflows commit.
+  EXPECTED_WORKFLOW_COMMIT  Audited 40-character svcfit-benchmarks commit.
 
 The SVCFit source checkout is pinned to commit
 7f32d81f3dd0eee0f2b8623e2775aae70ce0e917. The default is a no-write dry-run;
@@ -104,7 +104,7 @@ fi
 [[ ! -e "$run_root" ]] || { printf 'ERROR: RUN_ROOT already exists: %s\n' "$run_root" >&2; exit 1; }
 mkdir -p "$run_root/log" "$run_root/provenance" "$run_root/library" \
     "$run_root/cache" "$run_root/r-user" "$run_root/tmp"
-printf '%s\n' "$workflow_commit" > "$run_root/provenance/svcfit_workflows.commit.txt"
+printf '%s\n' "$workflow_commit" > "$run_root/provenance/workflow.commit.txt"
 printf '%s\n' "$svcfit_commit" > "$run_root/provenance/SVCFit.commit.txt"
 sha256sum "$config_file" > "$run_root/provenance/site-config.sha256"
 cp -p "$runtime_loader" "$run_root/provenance/site-runtime.sh"

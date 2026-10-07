@@ -98,11 +98,12 @@ fac_dir=${work_dir}/facet
 svc_dir=${work_dir}/svclone
 
 samtools="${SAMTOOLS:-$(command -v samtools)}"
-scrp_dir=${base_dir}/script
-seeded_py=${base_dir}/visor_seeded.py
-
-svclone_cfg=${base_dir}/script/svclone_config.ini
-make_input=${base_dir}/script/make_input.R
+pipeline_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+seeded_py=$(dirname "$pipeline_dir")/tree_eval/eval_package/Phylogeny_benchmark/scripts/visor_seeded.py
+helper_dir=${VISOR_REPLICATE_HELPER_DIR:-${pipeline_dir}/helpers}
+get_sv_range=${helper_dir}/get_sv_range.R
+make_input=${helper_dir}/make_input.R
+svclone_cfg=${helper_dir}/svclone_config.ini
 
 # --- Reproducibility header ---
 log_repro_header() {

@@ -16,7 +16,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--code-root', type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument('--data-root', type=Path, required=True,
-                        help='External repository-data/svcfit_workflows directory')
+                        help='External data directory laid out like this repository')
     parser.add_argument('--output', type=Path, required=True, help='New directory outside both Git repositories')
     args = parser.parse_args()
     code, data, output = (p.expanduser().resolve() for p in (args.code_root, args.data_root, args.output))

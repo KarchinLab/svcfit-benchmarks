@@ -101,7 +101,7 @@ attach_001_ground_truth_snvs <- function(snv_wd, ccfs) {
     return(ccfs)
 }
 
-#TODO: merge with calc_metrics_3clus
+# Metrics for 4- and 5-cluster solutions; calc_metrics_3clus below handles 3 clusters.
 calc_metrics_hiclus <- function(x, mix, nclus=c(4,5), type='sv', truth='best') {
     method <- NA
     if(type == 'svs') {

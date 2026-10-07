@@ -160,6 +160,18 @@ else
     fail "SVclone Rscript" "$ENV_SVCLONE/bin/Rscript is not executable"
 fi
 
+# The chrX depth segmentation (visor_chrX 06, prostate 04a) runs DNAcopy with
+# CHRX_RSCRIPT (the dnacopy environment, tools/environments/dnacopy.yml).
+say; say "DNAcopy R (${CHRX_RSCRIPT:-unset})"
+if [[ -n "${CHRX_RSCRIPT:-}" && -x "$CHRX_RSCRIPT" ]] \
+   && "$CHRX_RSCRIPT" -e \
+        "quit(status=if(requireNamespace('DNAcopy',quietly=TRUE)) 0L else 1L)" \
+        >/dev/null 2>&1; then
+    pass "DNAcopy R: DNAcopy"
+else
+    fail "DNAcopy R: DNAcopy" "build the dnacopy environment with tools/setup_rockfish_tool_envs.sh and set CHRX_RSCRIPT"
+fi
+
 # --- reticulate -> sklearn (stage 6 clustering only) --------------------------
 # Checked through reticulate rather than by importing sklearn directly, because
 # the two can disagree and only this one matters: cluster_data() has reticulate

@@ -8,9 +8,9 @@
 #SBATCH --time=2:00:00
 #
 # Build hemizygous chrX clone genomes for the SVCFit chrX simulation.
-# Hemizygous analogue of scripts/genome_setup/run_m_hack.sh (session log §20, §21).
+# Hemizygous analogue of scripts/genome_setup/run_m_hack.sh.
 #
-# KARYOTYPE PER CLONE (verified empirically in §21):
+# KARYOTYPE PER CLONE (verified empirically):
 #   h1.fa = chr22 + chrX(variants)     h2.fa = chr22 only
 # SHORtS splits coverage by FASTA count (SHORtS.py:1039-1041) and skips a contig
 # absent from a haplotype with a warning (:244-247). So chr22 draws from both
@@ -19,7 +19,7 @@
 # silently break psi_sample = 2. The two-FASTA split is required.
 #
 # EXPERIMENTS: e1, e2, e4 only. e3 (in-trans amp) and e5 (deletion on the other
-# allele) are diploid-only constructs — see §20.1.
+# allele) are diploid-only constructs.
 #
 # NO SNP BACKGROUND anywhere: a male chrX carries no het
 # germline SNPs, so clone genomes are built straight off plain reference. Spiking
@@ -40,9 +40,9 @@ sv_beds="${BASE_DIR}/truth/sv_beds"
 out="${BASE_DIR}/truth/fastas/clone_genomes"
 work="${BASE_DIR}/truth/fastas/.work"
 
-# NOTE ON LAYOUT: §12(b) recorded that run_m_hack.sh writes truth/ while
+# NOTE ON LAYOUT: run_m_hack.sh writes truth/ while
 # pipeline_common.sh reads ground_truth/. This standalone chrX simulation uses
-# truth/ throughout, matching publication_package/'s real layout.
+# truth/ throughout.
 
 command -v VISOR   >/dev/null || { echo "ERROR: VISOR not on PATH from ENV_VISOR" >&2; exit 1; }
 command -v samtools >/dev/null || { echo "ERROR: samtools not on PATH" >&2; exit 1; }
@@ -77,7 +77,7 @@ expected_delta() {
         $4 == "tandem duplication" { d += ($3 - $2) * ($5 - 1) }
         { d += $6; n++ }   # col 6 = breakseqlen: VISOR inserts this many random
                            # bases at each breakpoint. Worth 354 bp on c2.bed, so
-                           # omitting it made this check false-alarm (§23).
+                           # omitting it made this check false-alarm.
         END { print d "\t" n }
     ' "$1"
 }
@@ -124,7 +124,7 @@ for i in 0 1; do
     # Uses dup_${cc}_postsv.bed, NOT dup_${cc}.bed: the amp lands on a genome the
     # SV pass already reshaped, so it must be addressed in post-SV coordinates.
     # Reference coordinates here misplace the amplification and, for c33, overrun
-    # the shortened contig outright (§23).
+    # the shortened contig outright.
     echo "[$(date +%T)] e2/$cln  <- $cc.bed then dup_${cc}_postsv.bed"
     rm -rf "$work/e2a_$cln" "$work/e2_$cln"
     VISOR HACk -g "$REF"                  -b "$sv_beds/$cc.bed"            -o "$work/e2a_$cln"
@@ -133,7 +133,7 @@ for i in 0 1; do
 
     # --- e4: amplification FIRST, then SV --------------------------------
     # SVCF = cn_bar*VAF: the SV lands in one copy of an already-amplified region.
-    # aft_*.bed coordinates are pre-shifted for the amplification (§20.4).
+    # aft_*.bed coordinates are pre-shifted for the amplification.
     echo "[$(date +%T)] e4/$cln  <- dup_$cc.bed then aft_$cc.bed"
     rm -rf "$work/e4a_$cln" "$work/e4_$cln"
     VISOR HACk -g "$REF"                  -b "$sv_beds/dup_$cc.bed" -o "$work/e4a_$cln"
@@ -144,7 +144,7 @@ done
 # ---------------------------------------------------------------------------
 # Germline / normal-contamination clone: plain reference, no variants.
 # Used BOTH as the matched normal and as the normal-contamination clone inside
-# the tumour BAM. §12(a): both are the same trap with the same invisible failure
+# the tumour BAM. Both are the same trap with the same invisible failure
 # mode — a diploid normal against a haploid tumour halves every cn_bar and every
 # chrX fraction comes out 2x wrong with nothing appearing broken.
 # ---------------------------------------------------------------------------
@@ -156,7 +156,7 @@ samtools faidx "$out/normal/h1.fa"
 samtools faidx "$out/normal/h2.fa"
 
 # ---------------------------------------------------------------------------
-# GUARDS. §21: SHORtS reports a missing contig as a warning and exits 0, and
+# GUARDS. SHORtS reports a missing contig as a warning and exits 0, and
 # 00_visor_shorts.sh runs `set +o pipefail` precisely to tolerate warnings — so
 # a wrong contig set here would silently halve coverage downstream. Verify the
 # karyotype structurally now rather than trusting exit status later.
@@ -232,4 +232,4 @@ if [[ $fail -ne 0 ]]; then
 fi
 rm -rf "$work"
 echo "RESULT: all clone genomes built and verified"
-echo "next: SHORtS over $out/{e1,e2,e4}/{c2,c3} + normal, e.g. COV=50 (§21)"
+echo "next: SHORtS over $out/{e1,e2,e4}/{c2,c3} + normal, e.g. COV=50"

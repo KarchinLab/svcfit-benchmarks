@@ -8,8 +8,7 @@
 # This does NOT touch or interfere with already-running jobs.
 #
 # Dependency chain mirrors submit_all.sh:
-#   00 → 01 → 02 → 03
-#                01 + 03 → 04
+#   00 → 01 → 02 → 03  (04 is not submitted)
 
 set -euo pipefail
 
@@ -40,12 +39,12 @@ cd "$(dirname "$0")"
 
 mkdir -p log
 
-BASE="$REPLICATES_DIR"
+SCRIPT_DIR="$(pwd)"
 
 # Submit a pipeline script with pipeline_common_10pct.sh swapped in.
 # Additional sbatch args (e.g. --dependency) are passed as extra arguments.
 submit_10pct() {
-    local script="${BASE}/$1"
+    local script="${SCRIPT_DIR}/$1"
     shift
     sed 's|pipeline_common\.sh|pipeline_common_10pct.sh|g' "$script" \
         | sbatch --parsable --array=0-449%10 "$@"
@@ -64,8 +63,6 @@ echo "02_snp_pipeline    : $JOB2  (array 0-449, after each task of $JOB1)"
 
 JOB3=$(submit_10pct 03_facet.sh --dependency=afterok:${JOB2})
 echo "03_facet           : $JOB3  (array 0-449, after $JOB2)"
-
-echo "04_svclone         : $JOB4  (array 0-449, after $JOB1 + $JOB3)"
 
 echo ""
 echo "Monitor with: squeue -u \$USER"

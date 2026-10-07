@@ -128,7 +128,7 @@ for helper in "$get_sv_range" "$make_input" "$svclone_cfg"; do
         return 1 2>/dev/null || exit 1
     }
 done
-seeded_py=${base_dir}/visor_seeded.py
+seeded_py=$(dirname "$pipeline_dir")/tree_eval/eval_package/Phylogeny_benchmark/scripts/visor_seeded.py
 
 # --- Reproducibility header ---
 log_repro_header() {

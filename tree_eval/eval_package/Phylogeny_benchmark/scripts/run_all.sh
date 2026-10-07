@@ -32,7 +32,7 @@ EVAL_DIR=$PUB_DIR/outputs/evaluation
 
 mkdir -p log
 
-echo "=== Longitudinal Simulation Benchmark (6 bootstrap runs) ==="
+echo "=== Longitudinal Simulation Benchmark (5 simulation replicates) ==="
 echo "Scenarios: ${SCENARIOS[@]}"
 echo "Purities:  ${PURITIES[@]}"
 echo "Boots:     ${BOOTS[@]}"

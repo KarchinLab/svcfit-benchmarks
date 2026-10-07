@@ -21,7 +21,8 @@
 #
 #   Usage: Rscript 05_chrx_depth_segmentation_sim.R <tumor.bam> <normal.bam> <psi_sample> <out.csv> [bin_kb]
 #
-# Requires samtools on PATH and the DNAcopy package (both present in conda env `visor`).
+# Requires samtools on PATH and the DNAcopy package (conda env `dnacopy`, tools/environments/dnacopy.yml;
+#   06_chrx_segment_array.sbatch runs this with $CHRX_RSCRIPT).
 
 suppressPackageStartupMessages(library(DNAcopy))
 

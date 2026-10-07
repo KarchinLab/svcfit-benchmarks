@@ -89,7 +89,7 @@ testthat::test_package(
 (
     cd "$RUN_ROOT"
     sha256sum install.log testthat.log provenance/SVCFit.commit.txt \
-        provenance/svcfit_workflows.commit.txt provenance/worker-environment.tsv \
+        provenance/workflow.commit.txt provenance/worker-environment.tsv \
         > provenance/output-files.sha256
 )
 

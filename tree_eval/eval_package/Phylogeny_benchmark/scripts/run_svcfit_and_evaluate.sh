@@ -127,7 +127,7 @@ if $dry_run; then
 fi
 
 mkdir -p "$output_dir" "$eval_dir" "$log_dir" "$provenance_dir" "$run_root/runtime-home" "$run_root/cache" "$run_root/r-user"
-printf '%s\n' "$workflow_commit" > "$provenance_dir/svcfit_workflows.commit.txt"
+printf '%s\n' "$workflow_commit" > "$provenance_dir/workflow.commit.txt"
 printf '%s\n' "$svcfit_commit" > "$provenance_dir/SVCFit.commit.txt"
 {
   printf 'r_libs_user\tloaded_from\tinstalled_commit\n'

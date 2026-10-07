@@ -11,11 +11,11 @@
 # applies no matter what argument is passed — so `sbatch 02_chrx_shorts.sh normal`
 # launched 45 concurrent copies of the *matched normal* job, all writing to the
 # same output directory. 43 died on VISOR's "output folder is not empty" guard
-# (SHORtS.py:880) and the two survivors clobbered each other (job 29344043, §28).
+# (SHORtS.py:880) and the two survivors clobbered each other (job 29344043).
 # The array size now lives on the command line, so the two modes cannot be
 # confused. Pass --array ONLY for the tumour run.
 #
-# SIZING (see §26). The 45 tasks are fully independent, so concurrency is the
+# SIZING. The 45 tasks are fully independent, so concurrency is the
 # real lever: %45 runs them in one wave instead of 5 sequential batches.
 # 45 x 12 = 540 cpus against a `normal` QoS ceiling of cpu=3600, on 48-core nodes
 # (4 tasks/node). Cores-per-task help LESS than they look: SHORtS.py:1054 walks
@@ -30,7 +30,7 @@
 #   sbatch --array=0-44%45 scripts/02_chrx_shorts.sh           <- 45 tumour BAMs (3 exps x 15 conds)
 #
 # The --array belongs on the command line, NOT in a directive: a directive would
-# also apply to the `normal` invocation and fan it out 45 ways (§28).
+# also apply to the `normal` invocation and fan it out 45 ways.
 #
 # The matched normal is a separate single job because it is condition-independent:
 # one germline BAM serves every tumour. Run it first — it is also the cleanest
@@ -41,8 +41,8 @@
 # normal must be single-copy on chrX too. cn_bar is a T/N depth ratio, so a
 # diploid normal against a haploid tumour halves every cn_bar and every chrX
 # fraction comes out 2x wrong with nothing appearing broken. Both the matched
-# normal AND the normal-contamination clone inside the tumour BAM (§12a) are
-# built from clone_genomes/normal/, which is haploid-chrX by construction (§22).
+# normal AND the normal-contamination clone inside the tumour BAM are
+# built from clone_genomes/normal/, which is haploid-chrX by construction.
 
 set -euo pipefail
 
@@ -50,7 +50,7 @@ set -euo pipefail
 # sbatch copies this script to a node-local spool dir and runs it from there, so
 # ${BASH_SOURCE[0]} is /cm/local/apps/slurm/var/spool/job<N>/slurm_script and a
 # BASH_SOURCE-relative source() fails with "No such file or directory". That is
-# exactly what killed all 45 tasks of job 29342365 (§27). The submitted
+# exactly what killed all 45 tasks of job 29342365. The submitted
 # 00_visor_shorts.sh:20 carries a SLURM_SUBMIT_DIR fallback for the same reason.
 # Try, in order: explicit override, submit dir, BASH_SOURCE dir, install path.
 # Last-resort locator, replacing a hardcoded
@@ -98,7 +98,7 @@ command -v samtools >/dev/null || { echo "ERROR: samtools not on PATH" >&2; exit
 MODE="${1:-tumour}"
 
 # VISOR emits non-fatal warnings; we inspect the log explicitly rather than
-# letting a pipe status decide (§21).
+# letting a pipe status decide.
 set +o pipefail
 
 # ---------------------------------------------------------------------------
@@ -131,7 +131,7 @@ run_shorts() {
     local rc=$?
     set -e
 
-    # VISOR EXIT CODE IS NOT TRUSTWORTHY ON /vast (§30).
+    # VISOR EXIT CODE IS NOT TRUSTWORTHY ON /vast.
     # After merging the final BAM, SHORtS os.remove()s the per-haplotype temp
     # files then os.rmdir()s their directories. On NFS the directory can still
     # report non-empty for a moment, so rmdir raises
@@ -139,7 +139,7 @@ run_shorts() {
     # and VISOR exits 1 — AFTER sim.srt.bam is complete and indexed. Job 29344957
     # died this way with a perfectly good 754 MB BAM.
     # So: tolerate that specific failure only when the BAM itself verifies.
-    # Same lesson as §11 — check for the artefact, not the reported status.
+    # Check for the artefact, not the reported status.
     # User confirms this cleanup failure is not intermittent — VISOR fails it
     # every run on this filesystem. So match the condition broadly (errno number
     # OR the message text, since the numeric errno is platform-specific) while
@@ -162,7 +162,7 @@ run_shorts() {
 # MATCHED NORMAL
 # ===========================================================================
 if [[ "$MODE" == "normal" ]]; then
-    # Belt and braces after §28: even if an --array sneaks back in, refuse to run
+    # Belt and braces: even if an --array sneaks back in, refuse to run
     # the matched normal as a fan-out. Every task would target one output dir,
     # tripping VISOR's non-empty-output guard or racing to corrupt the BAM.
     if [[ -n "${SLURM_ARRAY_TASK_ID:-}" ]]; then

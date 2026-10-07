@@ -6,8 +6,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=12G
 #SBATCH --time=12:00:00
-#SBATCH --array=58-59,63,65-84,86-87,94,96,98-99,101-107
-####0-329
+#SBATCH --array=0-329
 set -euo pipefail
 # Creates 30 independent replicate in-silico mixture BAMs from the original
 # unmixed BAMs, each using a different random seed for samtools subsampling.

@@ -57,11 +57,11 @@ export XDG_CACHE_HOME="$ROCKFISH_RUNTIME_ROOT/cache"
 export PIP_CACHE_DIR="$ROCKFISH_RUNTIME_ROOT/cache/pip"
 
 requested=("$@")
-((${#requested[@]})) || requested=(visor manta svtyper gatk4 facet svclone)
+((${#requested[@]})) || requested=(visor manta svtyper gatk4 facet svclone dnacopy)
 
 valid_name() {
   case "$1" in
-    visor|manta|svtyper|gatk4|facet|svclone) return 0 ;;
+    visor|manta|svtyper|gatk4|facet|svclone|dnacopy) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -74,6 +74,10 @@ environment_ready() {
     svtyper) [[ -x "$prefix/bin/svtyper" ]] ;;
     gatk4) [[ -x "$prefix/bin/gatk" ]] ;;
     facet) [[ -x "$prefix/bin/Rscript" ]] ;;
+    dnacopy)
+      [[ -x "$prefix/bin/Rscript" ]] &&
+        "$prefix/bin/Rscript" -e 'quit(status=ifelse(requireNamespace("DNAcopy", quietly=TRUE), 0, 1))' >/dev/null 2>&1
+      ;;
     svclone)
       [[ -x "$prefix/bin/svclone" && -x "$prefix/bin/Rscript" ]] &&
         "$prefix/bin/python" -c 'import importlib.metadata as m, numpy, pandas, sys; assert sys.version_info[:2] == (3, 10); assert int(numpy.__version__.split(".")[0]) < 2; assert int(pandas.__version__.split(".")[0]) < 3; assert int(m.version("setuptools").split(".")[0]) < 81' >/dev/null 2>&1 &&
@@ -109,7 +113,7 @@ for name in "${requested[@]}"; do
   spec="$environment_specs/${name}_portable.yml"
   # A full GATK environment export bundles unrelated HTS utilities and Perl.
   # Keep GATK isolated; shared HTS commands come from the core runtime.
-  [[ "$name" == gatk4 || "$name" == visor || "$name" == svclone ]] && spec="$curated_specs/${name}.yml"
+  [[ "$name" == gatk4 || "$name" == visor || "$name" == svclone || "$name" == dnacopy ]] && spec="$curated_specs/${name}.yml"
   [[ -r "$spec" ]] || { printf 'ERROR: missing environment definition: %s\n' "$spec" >&2; exit 1; }
 
   if ! environment_ready "$name" "$prefix"; then

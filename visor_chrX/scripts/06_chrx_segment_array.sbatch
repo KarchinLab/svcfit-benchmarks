@@ -111,7 +111,7 @@ fi
 [[ -s "$tbam" ]] || { echo "ERROR: missing tumour BAM $tbam" >&2; exit 1; }
 [[ -s "$nbam" ]] || { echo "ERROR: missing normal BAM $nbam" >&2; exit 1; }
 
-Rscript "${_DIR}/05_chrx_depth_segmentation_sim.R" "$tbam" "$nbam" "$PSI" "$out" "$BIN_KB"
+"${CHRX_RSCRIPT:-Rscript}" "${_DIR}/05_chrx_depth_segmentation_sim.R" "$tbam" "$nbam" "$PSI" "$out" "$BIN_KB"
 
 [[ -s "$out" ]] || { echo "ERROR: $out not produced" >&2; exit 1; }
 echo "RESULT: ${exp_name}/${cond_name} -> $out ($(wc -l < "$out") lines incl. header)"

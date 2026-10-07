@@ -5,7 +5,7 @@
 #SBATCH --mem=16G
 #SBATCH --time=4:00:00
 #
-# After the rescore array: copy the unchanged SVclone score tables beside the new SVCFit
+# After the rescore array: copy the unchanged SVclone score table beside the new SVCFit
 # scores, then rerun the replicate bootstrap (19) and the SVCFit-vs-SVclone comparison (23)
 # with CHRX_DIR pointed at the rescore root. Defaults (B=10000, BOOT_SEED=1) are unchanged.
 
@@ -19,7 +19,7 @@ set -euo pipefail
 for r in $(seq 1 "$N_REPS"); do
   dst="${CHRX_SCORE_ROOT}/scoring_rep${r}"
   [[ -s "$dst/chrx_svcfit_scores_c${COV}.tsv" ]] || { echo "ERROR: missing rescore for rep ${r}" >&2; exit 1; }
-  for f in chrx_svclone_scores_c${COV}.tsv chrx_svclone_fair_scores_c${COV}.tsv; do
+  for f in chrx_svclone_scores_c${COV}.tsv; do
     src="${CHRX_DIR}/scoring_rep${r}/$f"
     [[ -s "$src" ]] || { echo "ERROR: missing $src" >&2; exit 1; }
     cp -p "$src" "$dst/$f"

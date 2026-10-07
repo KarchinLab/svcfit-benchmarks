@@ -356,7 +356,7 @@ print(spearman_df, digits = 3)
 write_csv(spearman_df, file.path(opts$out_dir, "spearman_results.csv"))
 
 ###############################################################################
-# Mixed-effects regression (§ 6 of protocol, required)
+# Mixed-effects regression (required)
 #
 # Model: signed_error ~ log10(eff_cov) * clone + (1 | replicate)
 # Null:  signed_error ~ log10(eff_cov) + clone  + (1 | replicate)
@@ -462,9 +462,9 @@ ggsave(file.path(opts$out_dir, "fig_a2_3.pdf"), p, width = 10, height = 4.5)
 cat("\nFigure A2-3 saved.\n")
 
 ###############################################################################
-# Decision rules (§ 8 of protocol)
+# Decision rules
 ###############################################################################
-cat("\n--- Decision rules (protocol § 8) ---\n")
+cat("\n--- Decision rules ---\n")
 
 for (cl in c("Sub1", "Sub2", "Trunk")) {
   r <- spearman_df[spearman_df$clone == cl, ]

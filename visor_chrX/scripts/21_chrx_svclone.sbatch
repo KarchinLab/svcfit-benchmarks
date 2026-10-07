@@ -13,9 +13,9 @@
 #
 # WHY THIS EXISTS RATHER THAN visor_replicates/04_svclone.sh. That script is for the autosomal
 # benchmark and assumes its layout (${rep}/${exp}/${cond}/manta|facet|svclone) and FACETS input.
-# The chrX simulation has neither. It also sources pipeline_common.sh, whose ${base_dir}/script/
-# does not exist here -- the helpers are under scripts/helper/ -- and calls a make_input.R that
-# historically assumed an unavailable R package. This implementation parses its arguments without
+# The chrX simulation has neither. It also sources pipeline_common.sh, which expects the
+# autosomal replicate layout, and calls a make_input.R that historically assumed an unavailable
+# R package. This implementation parses its arguments without
 # that cross-environment dependency.
 #
 # FAIRNESS, since this is a head-to-head. Both methods get:

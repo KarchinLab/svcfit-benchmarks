@@ -4,7 +4,7 @@
 # scoring_rep* tables. Dry-run by default.
 #
 # Required environment:
-#   EXPECTED_WORKFLOW_COMMIT   40-character svcfit_workflows commit
+#   EXPECTED_WORKFLOW_COMMIT   40-character svcfit-benchmarks commit
 #   EXPECTED_SVCFIT_COMMIT     40-character SVCFit commit the library was built from
 #   SVCFIT_R_LIB               R library holding that SVCFit build
 #   SVCFIT_R_LIB_COMMIT_FILE   file naming the commit SVCFIT_R_LIB was built from
@@ -56,7 +56,7 @@ $submit || { echo "DRY RUN: no directory created and no job submitted."; exit 0;
 [[ -z "$(git -C "$workflow_repo" status --porcelain)" ]] || { echo "ERROR: workflow checkout is dirty" >&2; exit 1; }
 
 mkdir -p "$run_root/log" "$run_root/provenance"
-printf '%s\n' "$workflow_commit" > "$run_root/provenance/svcfit_workflows.commit.txt"
+printf '%s\n' "$workflow_commit" > "$run_root/provenance/workflow.commit.txt"
 printf '%s\n' "$lib_commit" > "$run_root/provenance/SVCFit.commit.txt"
 printf 'r_libs\tloaded_from\tinstalled_commit\n%s\t%s\t%s\n' "$SVCFIT_R_LIB:$RLIB" "$loaded" "$lib_commit" \
   > "$run_root/provenance/svcfit-r-library.tsv"
