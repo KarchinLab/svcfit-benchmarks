@@ -72,7 +72,7 @@ fair$key <- paste(fair$task_id, fair$svcfit_mutation_id, sep = "\r")
 shared_key <- intersect(assisted$key, fair$key)
 a <- assisted[match(shared_key, assisted$key), ]
 f <- fair[match(shared_key, fair$key), ]
-if (length(shared_key) != 126013L || anyNA(a$task_id) || anyNA(f$task_id) ||
+if (length(shared_key) != 126032L || anyNA(a$task_id) || anyNA(f$task_id) ||
     any(abs(a$true_svcf - f$true_svcf) > 1e-12) ||
     any(abs(a$svcfit_svcf - f$svcfit_svcf) > 1e-12)) {
   stop("Primary 25 bp three-way gate failed", call. = FALSE)

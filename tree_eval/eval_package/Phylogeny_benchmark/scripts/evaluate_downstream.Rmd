@@ -380,8 +380,8 @@ for (b in boots) {
       bpc_t2         <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
       seg_len_t1     <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
       seg_len_t2     <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
-      ascn_t1        <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
-      ascn_t2        <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
+      acr_t1        <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
+      acr_t2        <- setNames(rep(NA_real_, 3), c("trunk", "sub1", "sub2"))
       sv_detail_rows <- list()
 
       if (!is.na(trunk_cluster) && !is.null(best_asgn)) {
@@ -428,14 +428,14 @@ for (b in boots) {
             mean_ao  <- if (length(ao_vals)  > 0L) mean(ao_vals)  else NA_real_
             mean_len <- if (length(len_vals) > 0L) mean(len_vals) else NA_real_
             bpc_val  <- as.numeric(nrow(sv_cl))
-            ascn_val <- mean(nd_flags, na.rm = TRUE)
+            acr_val <- mean(nd_flags, na.rm = TRUE)
 
             if (tp_n == 1L) {
               eff_cov_t1[[cl]] <- mean_ao;  bpc_t1[[cl]] <- bpc_val
-              seg_len_t1[[cl]] <- mean_len; ascn_t1[[cl]] <- ascn_val
+              seg_len_t1[[cl]] <- mean_len; acr_t1[[cl]] <- acr_val
             } else {
               eff_cov_t2[[cl]] <- mean_ao;  bpc_t2[[cl]] <- bpc_val
-              seg_len_t2[[cl]] <- mean_len; ascn_t2[[cl]] <- ascn_val
+              seg_len_t2[[cl]] <- mean_len; acr_t2[[cl]] <- acr_val
             }
 
             if (nrow(sv_cl) > 0L)
@@ -527,12 +527,12 @@ for (b in boots) {
         seg_len_trunk_post = seg_len_t2["trunk"],
         seg_len_sub1_post  = seg_len_t2["sub1"],
         seg_len_sub2_post  = seg_len_t2["sub2"],
-        ascn_trunk_pre     = ascn_t1["trunk"],
-        ascn_sub1_pre      = ascn_t1["sub1"],
-        ascn_sub2_pre      = ascn_t1["sub2"],
-        ascn_trunk_post    = ascn_t2["trunk"],
-        ascn_sub1_post     = ascn_t2["sub1"],
-        ascn_sub2_post     = ascn_t2["sub2"],
+        acr_trunk_pre     = acr_t1["trunk"],
+        acr_sub1_pre      = acr_t1["sub1"],
+        acr_sub2_pre      = acr_t1["sub2"],
+        acr_trunk_post    = acr_t2["trunk"],
+        acr_sub1_post     = acr_t2["sub1"],
+        acr_sub2_post     = acr_t2["sub2"],
         correct_topology   = correct_topology,
         topo_score         = topo_score
       )))
@@ -1195,10 +1195,10 @@ covariates <- list(
        display_label = "Mean SV segment length",
        x_label       = expression(log[10](mean~SV~length~(bp))),
        log_transform = TRUE),
-  list(prefix        = "ascn_",
-       label         = "ascn",
-       display_label = "ASCN mismatch fraction",
-       x_label       = "ASCN mismatch fraction (non-diploid)",
+  list(prefix        = "acr_",
+       label         = "acr",
+       display_label = "ACR mismatch fraction",
+       x_label       = "ACR mismatch fraction (non-diploid)",
        log_transform = FALSE)
 )
 
@@ -1325,7 +1325,7 @@ if (!is.null(sv_detail_df) && nrow(sv_detail_df) > 0L) {
       mean_ao      = mean(ao,            na.rm = TRUE),
       bpc_count    = n(),
       mean_seg_len = mean(sv_len,        na.rm = TRUE),
-      ascn_frac    = mean(is_nondiploid, na.rm = TRUE),
+      acr_frac    = mean(is_nondiploid, na.rm = TRUE),
       signed_error = first(signed_error),
       .groups = "drop"
     ) %>%
@@ -1337,7 +1337,7 @@ if (!is.null(sv_detail_df) && nrow(sv_detail_df) > 0L) {
     list(col = "mean_ao",      log = TRUE,  label = "Mean AO"),
     list(col = "bpc_count",    log = TRUE,  label = "N SVs assigned"),
     list(col = "mean_seg_len", log = TRUE,  label = "Mean seg length"),
-    list(col = "ascn_frac",    log = FALSE, label = "ASCN mismatch")
+    list(col = "acr_frac",    log = FALSE, label = "ACR mismatch")
   )
 
   strat_rho_rows <- list()
@@ -1372,7 +1372,7 @@ if (!is.null(sv_detail_df) && nrow(sv_detail_df) > 0L) {
              sv_type   = factor(sv_type),
              covariate = factor(covariate,
                                 levels = c("Mean AO", "N SVs assigned",
-                                           "Mean seg length", "ASCN mismatch"))) %>%
+                                           "Mean seg length", "ACR mismatch"))) %>%
       ggplot(aes(x = sv_type, y = covariate, fill = rho)) +
       geom_tile(color = "white", linewidth = 0.5) +
       geom_text(aes(label = sprintf("%.2f\n(n=%d)", rho, n)),

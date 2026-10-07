@@ -11,7 +11,7 @@ Required environment:
   EXPECTED_WORKFLOW_COMMIT  Audited 40-character svcfit_workflows commit.
 
 The SVCFit source checkout is pinned to commit
-e0d7e0b8d704caa3cfb227bc3dbf1ee99d66fac7. The default is a no-write dry-run;
+bedf5efc334841f854c90f5e489c86b854a547a2. The default is a no-write dry-run;
 --submit is required to create a run directory and submit the Slurm job.
 USAGE
 }
@@ -31,7 +31,7 @@ done
 readonly script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly workflow_repo="$(git -C "$script_dir" rev-parse --show-toplevel)"
 readonly config_file="${VISOR_CONFIG:-$workflow_repo/config.local.sh}"
-readonly expected_svcfit_commit=e0d7e0b8d704caa3cfb227bc3dbf1ee99d66fac7
+readonly expected_svcfit_commit=bedf5efc334841f854c90f5e489c86b854a547a2
 
 : "${EXPECTED_WORKFLOW_COMMIT:?Set EXPECTED_WORKFLOW_COMMIT to the audited full workflow commit}"
 [[ "$EXPECTED_WORKFLOW_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {

@@ -34,7 +34,7 @@ VISOR_ROOT <- .cfg$VISOR_ROOT
 pub_root <- Sys.getenv("PM_PUB_ROOT", .cfg$PROSTATE_DATA_DIR)
 
 ##need gtools, library(RColorBrewer)
-## SVCFit library: an installed SVCFit at commit e0d7e0b (see tools/run_svcfit_self_evaluation.sh).
+## SVCFit library: an installed SVCFit at commit bedf5ef (see tools/run_svcfit_self_evaluation.sh).
 ## Required, so a different SVCFit on the default library path cannot be picked up by accident.
 SVCFIT_RLIB <- Sys.getenv("SVCFIT_RLIB", "")
 if (!nzchar(SVCFIT_RLIB) || !dir.exists(SVCFIT_RLIB)) stop("set SVCFIT_RLIB to an SVCFit library")

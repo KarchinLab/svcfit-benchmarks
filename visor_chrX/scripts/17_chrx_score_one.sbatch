@@ -44,7 +44,7 @@ echo "=== replicate ${REP}, coverage ${cov} ==="
 export COV REP
 SEG_DIR="${V}/seg10k" OUT_DIR="${V}/cn_bar10k_m" "${SCRIPTS}/09_chrx_join_all.sh"
 
-# SVCFit comes from SVCFIT_R_LIB (an SVCFit e0d7e0b library); 13 asserts the hemizygous entry points.
+# SVCFit comes from SVCFIT_R_LIB (an SVCFit bedf5ef library); 13 asserts the hemizygous entry points.
 : "${SVCFIT_R_LIB:?set SVCFIT_R_LIB to an SVCFit library (see tools/run_svcfit_self_evaluation.sh)}"
 export R_LIBS="${SVCFIT_R_LIB}:${RLIB}"
 export CHRX_DIR="$V"

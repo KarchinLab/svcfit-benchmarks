@@ -35,7 +35,7 @@ readonly lock_dir="$runtime_root/.install.lock"
   printf 'ERROR: missing environment YAML: %s\n' "$environment_yaml" >&2
   exit 1
 }
-[[ "$(git -C "$svcfit_source" rev-parse HEAD)" == e0d7e0b8d704caa3cfb227bc3dbf1ee99d66fac7 ]] || {
+[[ "$(git -C "$svcfit_source" rev-parse HEAD)" == bedf5efc334841f854c90f5e489c86b854a547a2 ]] || {
   printf 'ERROR: SVCFit source is not at the required commit\n' >&2
   exit 1
 }

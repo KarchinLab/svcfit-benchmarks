@@ -51,7 +51,7 @@ required_matches <- c(
   "svcfit_svcf", "svclone_svcf", "score_ready"
 )
 if (length(setdiff(required_matches, names(matches)))) stop("Invalid final match schema", call. = FALSE)
-if (nrow(matches) != 275326L || anyDuplicated(matches[c("task_id", "arm", "svcfit_mutation_id")])) {
+if (nrow(matches) != 275366L || anyDuplicated(matches[c("task_id", "arm", "svcfit_mutation_id")])) {
   stop("Final pairwise match gate failed", call. = FALSE)
 }
 if (nrow(manifest) != 2250L || sum(manifest$fair_outcome == "ready") != 1727L ||
