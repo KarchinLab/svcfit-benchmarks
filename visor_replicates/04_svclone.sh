@@ -25,7 +25,7 @@ done
 source "$_pc"
 log_repro_header "04_svclone.sh"
 
-sv_file=$manta_dir/results/variants/${cond_name}.vcf
+sv_file=$svtyp_dir/svt_${cond_name}.vcf
 ppur_frac=$(echo "scale=3; $ppur / 100" | bc)
 
 # Guard rm -rf

@@ -106,8 +106,12 @@ read_svcfit <- function() {
   if (length(setdiff(needed, names(x)))) stop("SVCFit table missing required columns")
   x$rep <- paste0("rep", as.integer(x$replicate))
   x$condition <- as.character(x$condition)
+  # For BND rows SVCFit's END is the local breakend end, not the mate position;
+  # the mate position is pos2 (NA for every other class, where END is correct).
+  end2 <- if ("pos2" %in% names(x)) ifelse(x$classification == "BND" & !is.na(x$pos2),
+                                           x$pos2, x$END) else x$END
   x$mutation_id <- paste(sub("^chr", "", x$CHROM), as.integer(x$POS),
-                         sub("^chr", "", x$chr2), as.integer(x$END), sep = ":")
+                         sub("^chr", "", x$chr2), as.integer(end2), sep = ":")
   x$svcfit_ccf <- pmin(as.numeric(x$final_svcf) / as.numeric(x$purity), 1)
   x <- x[is.finite(x$svcfit_ccf) & !is.na(x$mutation_id), ]
   split(x, paste(x$rep, x$condition, sep = "\r"))

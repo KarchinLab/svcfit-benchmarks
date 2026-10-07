@@ -21,7 +21,8 @@ done
 # shellcheck disable=SC1090
 source "$_pc"
 
-sv_file=${PM_SV_FILE:-$work_dir/manta/${samp_name}/results/variants/${samp_name}.vcf}
+# SV input is the SVtyper VCF from step 01 (same records as the Manta VCF, re-genotyped), the same file SVCFit reads.
+sv_file=${PM_SV_FILE:-$svtyp_dir/svt_${samp_name}.vcf}
 fac_input=${PM_FAC_DIR:-$fac_dir}
 rdata=${svc_dir}/${samp_name}/ccube_out/${samp_name}_ccube_sv_results.RData
 

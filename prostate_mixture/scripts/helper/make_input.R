@@ -36,10 +36,16 @@ colnames(svt) <- c("CHROM",  "POS",     "ID",      "REF",     "ALT",     "QUAL",
 tmp <- svt %>%
       dplyr::rename("chr1" = "CHROM", "pos1" = "POS")%>%
       filter(FILTER == "PASS")%>%
-      mutate(chr2 = gsub(".*(chr.).*","\\1", ALT),
-             chr2 = ifelse(grepl("chr", chr2), chr2, chr1),
+      ## BND mate chromosome, fixed 2026-10-06. The old regex ".*(chr.).*" only matched a
+      ## "chr"-prefixed mate, but these hs37d5 Manta VCFs write mates as e.g. "[7:45702526[",
+      ## so every translocation fell back to chr2 = chr1 and became a fake intrachromosomal
+      ## event. Take the mate contig from the bracket notation, whatever its naming.
+      mutate(chr2 = ifelse(grepl("[][]", ALT),
+                           sub("^[^][]*[][]([^:]+):.*$", "\\1", ALT), chr1),
              pos2 = gsub(".*:(\\d+).*","\\1", ALT),
-             pos2 = ifelse(grepl("\\d+", pos2), pos2, gsub("END=(\\d+).*","\\1",INFO)),
+             ## END= anchored to a key boundary (2026-10-06): SVtyper rewrites INFO so it no longer
+             ## starts with END=, which the old unanchored gsub turned into NA (or matched CIEND=).
+             pos2 = ifelse(grepl("\\d+", pos2), pos2, sub("^(.*;)?END=(\\d+).*$","\\2",INFO)),
              pos2 = as.integer(pos2),
              class = gsub(".*SVTYPE=(\\w+).*","\\1", INFO),
              pp=pos1,

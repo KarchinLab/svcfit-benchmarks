@@ -11,14 +11,15 @@ set -euo pipefail
 conditions=(3m19 3m28 3m37 3m46 3m55 3m64 3m73 3m82 3m91 4m 5m)
 rep=rep$((SLURM_ARRAY_TASK_ID/11+1)); cond=${conditions[$((SLURM_ARRAY_TASK_ID%11))]}
 src="${PROSTATE_SOURCE_ROOT%/}/$rep"; dst="${PROSTATE_RESULT_ROOT%/}/$rep"; svc="$dst/svclone/$cond"
-vcf_src="$src/manta/$cond/results/variants/$cond.vcf"; facet="$src/facet/$cond"; bam="${PROSTATE_MIX_BAM_ROOT%/}/$rep/$cond.bam"
+# SV input is the SVtyper VCF from step 01 (same records as the Manta VCF, re-genotyped), the same file SVCFit reads.
+vcf_src="$src/svtyp/$cond/svt_$cond.vcf"; facet="$src/facet/$cond"; bam="${PROSTATE_MIX_BAM_ROOT%/}/$rep/$cond.bam"
 for f in "$vcf_src" "$facet/$cond.RData" "$facet/$cond.bed" "$bam";do [[ -s "$f" ]]||{ echo "ERROR: missing $f" >&2;exit 3;};done
 rdata="$svc/$cond/ccube_out/${cond}_ccube_sv_results.RData"
 [[ -s "$rdata" && "${FORCE_PROSTATE_RERUN:-0}" != 1 ]]&&{ echo "Already complete: $rdata";exit 0;}
 [[ -z "$svc"||"$svc" != "$dst"/* ]]&&exit 4
-rm -rf -- "$svc";mkdir -p "$svc" "$dst/manta/$cond/results/variants"
+rm -rf -- "$svc";mkdir -p "$svc" "$dst/svtyp/$cond"
 normal="${PROSTATE_PIPELINE_DIR%/}/../../visor_replicates/normalize_two_sample_vcf.awk"
-vcf="$dst/manta/$cond/results/variants/$cond.vcf";tmp="${vcf}.tmp.${SLURM_JOB_ID:-$$}.${SLURM_ARRAY_TASK_ID}";trap 'rm -f -- "$tmp"' EXIT
+vcf="$dst/svtyp/$cond/svt_$cond.vcf";tmp="${vcf}.tmp.${SLURM_JOB_ID:-$$}.${SLURM_ARRAY_TASK_ID}";trap 'rm -f -- "$tmp"' EXIT
 awk -v normal_sample="${rep}_${cond}_normal" -v tumor_sample="${rep}_${cond}_tumor" -f "$normal" "$vcf_src">"$tmp";mv "$tmp" "$vcf";trap - EXIT
 export PATH="$VISOR_SVCLONE_ENV/bin:$PATH"
 rscript="$VISOR_SVCLONE_ENV/bin/Rscript";svclone="$VISOR_SVCLONE_ENV/bin/svclone"

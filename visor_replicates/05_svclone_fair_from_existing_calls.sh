@@ -22,7 +22,7 @@ pur=(10 10 10 20 20 20 40 40 40 60 60 60 80 80 80)
 mix=(10 30 50 10 30 50 10 30 50 10 30 50 10 30 50)
 rep=rep$((rep_idx+1)); exp=exp$((exp_idx+1)); cond=c50p${pur[$ci]}m${mix[$ci]}
 src="$source_root/$rep/$exp/$cond"; dst="$result_root/$rep/$exp/$cond"; svc="$dst/svclone_fair"
-vcf_src="$src/manta/results/variants/$cond.vcf"; vcf="$dst/manta/results/variants/$cond.vcf"
+vcf_src="$src/svtyp/svt_$cond.vcf"; vcf="$dst/svtyp/svt_$cond.vcf"
 for f in "$vcf_src" "$src/short/short.out/sim.srt.bam" "$src/facet/$cond.bed"; do
   [[ -s "$f" ]] || { echo "ERROR: missing input: $f" >&2; exit 3; }
 done
