@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Submit the pinned S1 phylogeny benchmark (SVCFit bedf5ef).
+# Submit the pinned S1 phylogeny benchmark (SVCFit 7f32d81).
 
 set -Eeuo pipefail
 
@@ -12,7 +12,7 @@ usage() {
     'pinned commit, placed ahead of RLIB; SVCFIT_R_LIB_COMMIT_FILE must then name that commit.'
 }
 
-mode=bedf5ef
+mode=7f32d81
 scope=
 dry_run=false
 while (($#)); do
@@ -43,7 +43,7 @@ else
   sbatch_bin="$(command -v sbatch || true)"
 fi
 readonly sbatch_bin
-readonly corrected_commit=bedf5efc334841f854c90f5e489c86b854a547a2  # SVCFit commit used for the paper
+readonly corrected_commit=7f32d81f3dd0eee0f2b8623e2775aae70ce0e917  # SVCFit commit used for the paper
 
 : "${EXPECTED_WORKFLOW_COMMIT:?Set EXPECTED_WORKFLOW_COMMIT to the audited full workflow commit}"
 [[ "$EXPECTED_WORKFLOW_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { printf 'ERROR: EXPECTED_WORKFLOW_COMMIT must contain 40 lowercase hex characters\n' >&2; exit 1; }

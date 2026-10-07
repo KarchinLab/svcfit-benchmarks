@@ -26,14 +26,14 @@ suppressMessages({
 
 ## WHICH SVCFit GOT LOADED. The scores depend on the SVCFit build, so the loaded
 ## package must export the hemizygous helpers, and its location is printed. Point
-## R_LIBS at an SVCFit bedf5ef library (see tools/run_svcfit_self_evaluation.sh).
+## R_LIBS at an SVCFit 7f32d81 library (see tools/run_svcfit_self_evaluation.sh).
 ##
 HEMI_API <- c("hemizygous_del_svcf", "hemizygous_dup_svcf", "resolve_hemizygous_svcf")
 .missing <- setdiff(HEMI_API, ls("package:SVCFit"))
 if (length(.missing)) {
   stop("SVCFit at ", find.package("SVCFit"), " exports no ",
        paste(.missing, collapse = ", "),
-       ".\n  Point R_LIBS at an SVCFit bedf5ef library.", call. = FALSE)
+       ".\n  Point R_LIBS at an SVCFit 7f32d81 library.", call. = FALSE)
 }
 cat("SVCFit:", find.package("SVCFit"), "\n")
 

@@ -4,7 +4,7 @@ Workflows that produced the benchmark results in:
 
 Liu Y, Lai J, Yang Y, Markowski MC, Antonarakis ES, De Marzo AM, Yegnasubramanian S, Wood LD, Sena LA, Karchin R. Longitudinal structural variant phylogenies define tumor evolution under therapeutic selection pressure in metastatic prostate cancer. npj Precision Oncology (in revision).
 
-The SVCFit R package is a separate repository, https://github.com/KarchinLab/SVCFit. All reported results correspond to SVCFit commit `bedf5efc334841f854c90f5e489c86b854a547a2`.
+The SVCFit R package is a separate repository, https://github.com/KarchinLab/SVCFit. All reported results correspond to SVCFit commit `7f32d81f3dd0eee0f2b8623e2775aae70ce0e917`.
 
 This repository covers four benchmarks, from simulation to the event-level outputs:
 
@@ -25,7 +25,7 @@ The clinical (COMBAT) analysis is not part of this repository.
 - Conda. Environment specifications are in `tools/environments/` and `prostate_mixture/prostate_replicates/conda_envs/`. `tools/setup_rockfish_tool_envs.sh` builds them; `tools/setup_rockfish_runtime.sh` builds the core runtime (R 4.4.3, SVCFit, scikit-learn through reticulate). The scripts are named for the cluster the runs used and take every path from configuration.
 - FACETS: run `tools/setup_facets.sh` (see `FACETS_SETUP.md`).
 - Tool versions are listed in Supplementary Table S1 of the paper (VISOR 1.1.3, Manta 1.6.0, SVtyper 0.7.1, GATK 4.6.2.0, FACETS 0.6.2, DNAcopy 1.80.0, SVclone 1.1.2, scikit-learn 1.9.0).
-- An SVCFit checkout at commit `bedf5ef` (`SVCFIT_PKG_DIR`) and an installed SVCFit library built from it. `tools/run_svcfit_self_evaluation.sh` installs the library into a fresh directory, runs the package tests and records the commit in `provenance/SVCFit.commit.txt`. The autosomal VISOR stage loads SVCFit from the checkout (`devtools::load_all`); the chromosome X, prostate and phylogeny stages load the installed library (`SVCFIT_R_LIB` with `SVCFIT_R_LIB_COMMIT_FILE`, or `--rlib` with `--rlib-commit-file` for prostate) and refuse one built from another commit. The phylogeny launcher only warns if `SVCFIT_R_LIB` is unset and then uses whatever SVCFit is on `RLIB`, so set it.
+- An SVCFit checkout at commit `7f32d81` (`SVCFIT_PKG_DIR`) and an installed SVCFit library built from it. `tools/run_svcfit_self_evaluation.sh` installs the library into a fresh directory, runs the package tests and records the commit in `provenance/SVCFit.commit.txt`. The autosomal VISOR stage loads SVCFit from the checkout (`devtools::load_all`); the chromosome X, prostate and phylogeny stages load the installed library (`SVCFIT_R_LIB` with `SVCFIT_R_LIB_COMMIT_FILE`, or `--rlib` with `--rlib-commit-file` for prostate) and refuse one built from another commit. The phylogeny launcher only warns if `SVCFIT_R_LIB` is unset and then uses whatever SVCFit is on `RLIB`, so set it.
 
 ## Configuration
 
@@ -38,7 +38,7 @@ Every script finds `config.local.sh` by walking up from its own location, or fro
 
 Set `VISOR_ROOT` to this checkout; the default in `config.example.sh` names an older directory (`svcfit_workflows`), and the prostate stage sources its helper scripts from `$VISOR_ROOT`.
 
-Several submit scripts record provenance and refuse to run from a modified checkout. They compare `git rev-parse HEAD` with `EXPECTED_WORKFLOW_COMMIT` and `EXPECTED_SVCFIT_COMMIT`; set the first to the commit of this repository you are running and the second to `bedf5efc334841f854c90f5e489c86b854a547a2`. The autosomal VISOR and prostate submit scripts read these from the environment and do not source `config.local.sh` themselves, so export them (or `source config.local.sh`) first. Submit scripts are dry runs unless given `--submit` (the phylogeny launcher submits unless given `--dry-run`).
+Several submit scripts record provenance and refuse to run from a modified checkout. They compare `git rev-parse HEAD` with `EXPECTED_WORKFLOW_COMMIT` and `EXPECTED_SVCFIT_COMMIT`; set the first to the commit of this repository you are running and the second to `7f32d81f3dd0eee0f2b8623e2775aae70ce0e917`. The autosomal VISOR and prostate submit scripts read these from the environment and do not source `config.local.sh` themselves, so export them (or `source config.local.sh`) first. Submit scripts are dry runs unless given `--submit` (the phylogeny launcher submits unless given `--dry-run`).
 
 ## Input data
 
@@ -96,7 +96,7 @@ Set `COV=50` for every stage; it is required. The scripts read the design files 
 ## Phylogeny benchmark (`tree_eval/eval_package/Phylogeny_benchmark/scripts/`)
 
 1. Simulate and call: `run_all.sh` submits `longi_short.sh` (VISOR SHORtS, two timepoints) and `longi_calling.sh` (Manta, SVtyper, SNPs, FACETS) for scenarios S1 to S4, purities 10% to 80% and simulation replicates BOOT 0 to 4. Only S1 at 20% to 80% is reported. These stages read the HACk files from `Phylogeny_benchmark/data/hack/` and write to `Phylogeny_benchmark/outputs/`, both inside the checkout, not from `TREE_EVAL_TRUTH_DIR` or to `TREE_EVAL_LONGITUDINAL`. Put `input_data/hack/` there before running, and move or link `outputs/` to `TREE_EVAL_LONGITUDINAL` afterwards. The `longi_svcfit.sh` and evaluation jobs that `run_all.sh` also submits do not get the variables `longi_svcfit.sh` requires (`OUTPUT_DIR`, `INPUT_DIR`, `SVCFIT_REPO`, ...), so they fail; step 2 replaces them.
-2. Reported results: `run_svcfit_and_evaluate.sh --scope full` re-runs SVCFit, clustering and tree reconstruction at SVCFit `bedf5ef` on the S1 simulations in `TREE_EVAL_LONGITUDINAL` (20% to 80% purity, 5 configurations, 5 replicates; 100 cases) and evaluates them with `evaluate_downstream.Rmd`. It needs `EXPECTED_WORKFLOW_COMMIT` plus `SVCFIT_R_LIB` and `SVCFIT_R_LIB_COMMIT_FILE`, and writes to `03_analysis/tree_eval/runs/<id>/` unless `RUN_ROOT` is set. `--scope smoke` runs one case (S1, 20% purity, BOOT 0, configuration 1); `--dry-run` checks without submitting.
+2. Reported results: `run_svcfit_and_evaluate.sh --scope full` re-runs SVCFit, clustering and tree reconstruction at SVCFit `7f32d81` on the S1 simulations in `TREE_EVAL_LONGITUDINAL` (20% to 80% purity, 5 configurations, 5 replicates; 100 cases) and evaluates them with `evaluate_downstream.Rmd`. It needs `EXPECTED_WORKFLOW_COMMIT` plus `SVCFIT_R_LIB` and `SVCFIT_R_LIB_COMMIT_FILE`, and writes to `03_analysis/tree_eval/runs/<id>/` unless `RUN_ROOT` is set. `--scope smoke` runs one case (S1, 20% purity, BOOT 0, configuration 1); `--dry-run` checks without submitting.
 3. Covariate analyses (Supplementary Note S3.5): `A2_coverage_correlation.R` and `a2_coverage_correlation/`.
 
 ## License

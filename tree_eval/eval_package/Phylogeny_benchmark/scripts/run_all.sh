@@ -10,7 +10,7 @@
 # Replicates per scenario/purity: 5 replicates x 5 SV-CNV configurations = 25.
 #
 # The reported S1 results re-run SVCFit, clustering and tree reconstruction at
-# SVCFit bedf5ef on these simulations with run_svcfit_and_evaluate.sh --scope full.
+# SVCFit 7f32d81 on these simulations with run_svcfit_and_evaluate.sh --scope full.
 #
 # Usage:
 #   bash run_all.sh
