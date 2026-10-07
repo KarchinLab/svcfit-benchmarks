@@ -216,8 +216,7 @@ run_task <- function(task_id) {
       run_tree                  = TRUE,
       lineage_precedence_thresh = 0.2,
       sum_filter_thresh         = 0.35,
-      ccf_floor                 = 0.1,
-      linear_penalty            = 0.3
+      ccf_floor                 = 0.1
     )
   }, error = function(e) list(error = conditionMessage(e)))
 

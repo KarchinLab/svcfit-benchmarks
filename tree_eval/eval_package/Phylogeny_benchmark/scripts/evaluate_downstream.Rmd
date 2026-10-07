@@ -306,6 +306,8 @@ for (b in boots) {
       if (has_tree) {
         tree_res   <- readRDS(tree_file)
         tree_edges <- tree_res[[1]]
+        # Number of spanning trees sharing the highest fitness (SVCFit build_tree n_top).
+        n_top      <- if (is.null(tree_res$n_top)) 1L else as.integer(tree_res$n_top)
         stored_mcf <- as.matrix(tree_res[[2]])
         current_mcf <- as.matrix(centroids[, c("t1_ccf", "t2_ccf")])
         storage.mode(stored_mcf) <- "double"
@@ -317,6 +319,7 @@ for (b in boots) {
         validate_tree_centroids(tree_edges, centroids, case_id)
       } else {
         tree_edges <- data.frame(parent = character(), child = character())
+        n_top      <- 0L
       }
 
       trunk_idx     <- tree_edges$child[tree_edges$parent == "root"]
@@ -474,6 +477,8 @@ for (b in boots) {
           }
         }
       }
+      # A tie between top-scoring trees leaves the topology unresolved: count it as a failure.
+      if (n_top > 1) correct_topology <- FALSE
 
       results <- c(results, list(tibble(
         boot               = b,
@@ -534,7 +539,8 @@ for (b in boots) {
         acr_sub1_post     = acr_t2["sub1"],
         acr_sub2_post     = acr_t2["sub2"],
         correct_topology   = correct_topology,
-        topo_score         = topo_score
+        topo_score         = topo_score,
+        tied_top_trees     = n_top
       )))
       sv_detail_list <- c(sv_detail_list, sv_detail_rows)
     }
@@ -648,13 +654,14 @@ topo_summary <- all_results %>%
     n             = n(),
     n_scored      = n(),
     n_no_tree     = sum(tree_outcome == "no_tree"),
+    n_tied        = sum(tied_top_trees > 1),
     n_correct     = sum(correct_topology, na.rm = TRUE),
     recovery_rate = n_correct / n,
     ci_lower      = wilson_ci(n_correct, n)["lower"],
     ci_upper      = wilson_ci(n_correct, n)["upper"],
     .groups = "drop"
   )
-# NO_TREE is a scored topology failure. Missing output aborts the evaluation,
+# NO_TREE and tied top-scoring trees are scored topology failures. Missing output aborts the evaluation,
 # preventing an incomplete denominator from being published.
 topo_summary
 write_csv(topo_summary, file.path(out_dir, "topology_summary.csv"))

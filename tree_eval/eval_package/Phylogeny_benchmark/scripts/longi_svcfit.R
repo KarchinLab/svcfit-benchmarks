@@ -247,8 +247,7 @@ if (any(c("cluster", "tree") %in% stages)) {
     run_tree                  = run_tree,
     lineage_precedence_thresh = 0.2,
     sum_filter_thresh         = 0.2,
-    ccf_floor                 = opts$ccf_floor,
-    linear_penalty            = 0.3
+    ccf_floor                 = opts$ccf_floor
   )
 
   # Save clustering outputs
@@ -275,6 +274,9 @@ if (any(c("cluster", "tree") %in% stages)) {
     atomic_save_rds(full_result[[2]], file.path(tree_dir, "tree_result.rds"))
     message(sprintf("Tree output saved to %s", tree_dir))
     message(sprintf("Topology: %s", topo_str))
+    if (!is.null(full_result[[2]]$n_top) && full_result[[2]]$n_top > 1)
+      message(sprintf("Tied: %d trees share the highest fitness (counted as a topology failure)",
+                      full_result[[2]]$n_top))
   } else if (run_tree) {
     no_tree <- file.path(tree_dir, "NO_TREE.txt")
     atomic_write_lines(c(
